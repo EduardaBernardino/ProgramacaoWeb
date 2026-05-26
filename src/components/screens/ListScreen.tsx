@@ -22,7 +22,7 @@ export default function ListScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
 
-  // Estados do componente adaptados para o SQLite (id numérico)
+  // Estados do componente
   const [produtos, setProdutos] = useState<ItemCompra[]>([]);
   const [modalVisivel, setModalVisivel] = useState(false);
   const [nome, setNome] = useState('');
@@ -31,11 +31,10 @@ export default function ListScreen() {
   const [fotoUrl, setFotoUrl] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Função centralizada para buscar a lista filtrada do usuário logado
+  // Busca a lista filtrada do usuário logado
   const carregarItensDoBancoLocal = () => {
     const usuarioLogado = auth.currentUser;
     if (usuarioLogado) {
-      // Requisito: Cada usuário visualiza apenas a sua própria lista
       const dados = compraService.listarItensPorUsuario(usuarioLogado.uid);
       setProdutos(dados);
     } else {
@@ -44,7 +43,7 @@ export default function ListScreen() {
     }
   };
 
-  // 1. Escuta a resposta da câmera ao retornar para a tela
+  // Escuta a resposta da câmera ao retornar para a tela
   useEffect(() => {
     if (route.params?.fotoUrl) {
       setFotoUrl(route.params.fotoUrl);
@@ -52,15 +51,15 @@ export default function ListScreen() {
     }
   }, [route.params?.fotoUrl]);
 
-  // 2. Carrega a lista local em tempo de montagem da tela
+  // Carrega a lista local na montagem da tela
   useEffect(() => {
     carregarItensDoBancoLocal();
   }, []);
 
-  // 3. Soma total baseada no array do banco local
+  // Cálculo automático do Total Geral da Compra (Rotina 4)
   const valorTotalCompra = produtos.reduce((acc, item) => acc + item.totalItem, 0);
 
-  // 4. Salva o item de forma síncrona/otimista no SQLite local
+  // AÇÃO 1: Salva o item no SQLite local (Rotina 3)
   const handleSalvarItem = async () => {
     const usuarioLogado = auth.currentUser;
 
@@ -87,12 +86,10 @@ export default function ListScreen() {
         return;
       }
 
-      // Requisito: Valor total do item calculado automaticamente (valor × quantidade)
       const totalItemCalculado = valorUnitario * qtd;
 
-      // Salvamento Local no SQLite
       await compraService.salvarItemLocal({
-        userId: usuarioLogado.uid, // Garante o isolamento por ID
+        userId: usuarioLogado.uid,
         nome: nome.trim(),
         precoUnitario: valorUnitario,
         quantidade: qtd,
@@ -100,26 +97,72 @@ export default function ListScreen() {
         totalItem: totalItemCalculado,
       });
 
-      // Reseta inputs e fecha modal
       setNome('');
       setPreco('');
       setQuantidade('');
       setFotoUrl('');
       setModalVisivel(false);
 
-      // Recarrega instantaneamente a lista na tela
       carregarItensDoBancoLocal();
       Alert.alert('Sucesso', 'Item adicionado à sua lista local!');
 
     } catch (error) {
       console.error("Erro ao salvar no SQLite: ", error);
-      Alert.alert('Erro Local', 'Não foi possível gravar os dados no banco interno do aparelho.');
+      Alert.alert('Erro Local', 'Não foi possível gravar os dados.');
     } finally {
       setLoading(false);
     }
   };
 
-  // Opcional: Função de logout
+  // AÇÃO 2: Excluir item do banco de dados (Rotina 4)
+  const handleExcluirItem = (id: number | undefined) => {
+    if (!id) return;
+
+    Alert.alert(
+      'Remover Item',
+      'Tem certeza que deseja tirar este produto da lista?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Sim, remover',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await compraService.excluirItemLocal(id);
+              carregarItensDoBancoLocal(); // Atualização dinâmica automática
+            } catch (error) {
+              Alert.alert('Erro', 'Não foi possível excluir o item.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  // AÇÃO 3: Alterar quantidade com botões + e - (Rotina 4)
+  const handleAlterarQuantidade = async (item: ItemCompra, operacao: 'aumentar' | 'diminuir') => {
+    if (!item.id) return;
+
+    let novaQtd = item.quantidade;
+    if (operacao === 'aumentar') {
+      novaQtd += 1;
+    } else if (operacao === 'diminuir') {
+      novaQtd -= 1;
+    }
+
+    if (novaQtd <= 0) {
+      handleExcluirItem(item.id);
+      return;
+    }
+
+    try {
+      await compraService.atualizarQuantidadeLocal(item.id, novaQtd, item.precoUnitario);
+      carregarItensDoBancoLocal(); // Atualização dinâmica automática
+    } catch (error) {
+      console.error("Erro ao atualizar quantidade:", error);
+    }
+  };
+
   const handleLogout = async () => {
     try {
       await signOut(auth);
@@ -130,26 +173,55 @@ export default function ListScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Cabeçalho de Resumo de Valores */}
+      {/* Resumo de Valores */}
       <View style={styles.headerDashboard}>
         <Text style={styles.totalLabel}>Total da Compra:</Text>
         <Text style={styles.totalValue}>R$ {valorTotalCompra.toFixed(2)}</Text>
       </View>
 
-      {/* Lista de Compras do Usuário (SQLite) */}
+      {/* Listagem Interativa de Itens */}
       <FlatList
         data={produtos}
         keyExtractor={(item) => String(item.id)}
         renderItem={({ item }) => (
           <View style={styles.cardItem}>
             <Image source={{ uri: item.fotoUrl }} style={styles.cardImage} />
+
             <View style={styles.cardContent}>
               <Text style={styles.cardTitle}>{item.nome}</Text>
-              <Text style={styles.cardSub}>
-                {item.quantidade}x R$ {item.precoUnitario.toFixed(2)}
-              </Text>
+
+              {/* Controles Dinâmicos de Quantidade */}
+              <View style={styles.quantityContainer}>
+                <TouchableOpacity
+                  style={styles.qtyButton}
+                  onPress={() => handleAlterarQuantidade(item, 'diminuir')}
+                >
+                  <Text style={styles.qtyButtonText}>-</Text>
+                </TouchableOpacity>
+
+                <Text style={styles.cardSub}>{item.quantidade}x</Text>
+
+                <TouchableOpacity
+                  style={styles.qtyButton}
+                  onPress={() => handleAlterarQuantidade(item, 'aumentar')}
+                >
+                  <Text style={styles.qtyButtonText}>+</Text>
+                </TouchableOpacity>
+
+                <Text style={styles.precoUnitarioText}> R$ {item.precoUnitario.toFixed(2)}</Text>
+              </View>
+
+              {/* Total por Item calculado automaticamente */}
               <Text style={styles.cardTotalItem}>Total: R$ {item.totalItem.toFixed(2)}</Text>
             </View>
+
+            {/* Ícone de Remoção */}
+            <TouchableOpacity
+              style={styles.deleteButton}
+              onPress={() => handleExcluirItem(item.id)}
+            >
+              <Text style={styles.deleteButtonText}>✕</Text>
+            </TouchableOpacity>
           </View>
         )}
         ListEmptyComponent={
@@ -157,7 +229,6 @@ export default function ListScreen() {
         }
       />
 
-      {/* Botão Inferior Principal para Chamar a Câmera */}
       <TouchableOpacity
         style={styles.floatingButton}
         onPress={() => navigation.navigate('Camera')}
@@ -165,12 +236,11 @@ export default function ListScreen() {
         <Text style={styles.floatingButtonText}>📷 Fotografar Produto</Text>
       </TouchableOpacity>
 
-      {/* Botão de Logout */}
       <TouchableOpacity style={styles.logoutLink} onPress={handleLogout}>
         <Text style={styles.logoutLinkText}>Sair da Conta</Text>
       </TouchableOpacity>
 
-      {/* MODAL DE CADASTRO DO ITEM */}
+      {/* MODAL DE CADASTRO */}
       <Modal visible={modalVisivel} animationType="slide" transparent>
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <View style={styles.modalOverlay}>
@@ -182,7 +252,6 @@ export default function ListScreen() {
               ) : null}
 
               <View style={styles.formContainer}>
-                {/* Nome do Produto */}
                 <Text style={styles.inputLabel}>Nome do Produto</Text>
                 <TextInput
                   style={styles.input}
@@ -192,7 +261,6 @@ export default function ListScreen() {
                   onChangeText={setNome}
                 />
 
-                {/* Preço Unitário */}
                 <Text style={styles.inputLabel}>Preço Unitário (Gôndola)</Text>
                 <TextInput
                   style={styles.input}
@@ -203,7 +271,6 @@ export default function ListScreen() {
                   keyboardType="numeric"
                 />
 
-                {/* Quantidade */}
                 <Text style={styles.inputLabel}>Quantidade de Itens</Text>
                 <TextInput
                   style={styles.input}
@@ -265,5 +332,40 @@ const styles = StyleSheet.create({
   modalBtn: { flex: 1, padding: 15, borderRadius: 8, alignItems: 'center', marginHorizontal: 5 },
   btnSave: { backgroundColor: '#28a745' },
   btnCancel: { backgroundColor: '#6c757d' },
-  btnText: { color: '#fff', fontSize: 16, fontWeight: 'bold' }
+  btnText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+  quantityContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 5,
+    marginBottom: 2
+  },
+  qtyButton: {
+    backgroundColor: '#e9ecef',
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 5
+  },
+  qtyButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#495057'
+  },
+  precoUnitarioText: {
+    fontSize: 14,
+    color: '#666',
+    marginLeft: 5
+  },
+  deleteButton: {
+    padding: 10,
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  deleteButtonText: {
+    color: '#dc3545',
+    fontSize: 20,
+    fontWeight: 'bold'
+  }
 });
