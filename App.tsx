@@ -1,16 +1,31 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
-import { inicializarBancoLocal } from './src/services/database'; // Ajuste o caminho se suas pastas forem diferentes
-import Routes from './src/routes'; // Seu arquivo central de rotas (onde estão as telas de Login, Cadastro, List, etc.)
+import { View, ActivityIndicator } from 'react-native';
+import { inicializarBancoLocal } from './src/services/database'; 
+import Routes from './src/routes'; 
 
 export default function App() {
+  // Criamos um "sinal de trânsito" para o banco de dados
+  const [bancoPronto, setBancoPronto] = useState(false);
 
-  // 1. Inicializa a tabela 'compras' no SQLite assim que o app abre
   useEffect(() => {
-    inicializarBancoLocal();
+    async function prepararBanco() {
+      await inicializarBancoLocal(); // Espera a tabela ser criada
+      setBancoPronto(true); // Fica verde! Pode mostrar o app.
+    }
+    prepararBanco();
   }, []);
 
-  // 2. Garante que as rotas estão envelopadas pelo NavigationContainer obrigatório
+  // Enquanto não estiver pronto, mostra uma bolinha carregando
+  if (!bancoPronto) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#007bff" />
+      </View>
+    );
+  }
+
+  // Quando o banco estiver 100% pronto, libera as rotas
   return (
     <NavigationContainer>
       <Routes />
