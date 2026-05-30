@@ -14,8 +14,7 @@ import {
   Keyboard
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
-import { signOut } from 'firebase/auth';
-import { auth } from '../../services/firebase';
+// REMOVIDO: importações do Firebase
 import { compraService, ItemCompra } from '../../services/compraService';
 
 export default function ListScreen() {
@@ -31,16 +30,11 @@ export default function ListScreen() {
   const [fotoUrl, setFotoUrl] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Busca a lista filtrada do usuário logado
-  const carregarItensDoBancoLocal = () => {
-    const usuarioLogado = auth.currentUser;
-    if (usuarioLogado) {
-      const dados = compraService.listarItensPorUsuario(usuarioLogado.uid);
-      setProdutos(dados);
-    } else {
-      Alert.alert('Sessão Expirada', 'Por favor, realize o login novamente.');
-      navigation.navigate('Login');
-    }
+  // Busca a lista filtrada do banco de dados local
+  const carregarItensDoBancoLocal = async () => {
+    // Como o app agora é offline, usamos um ID fixo para o aparelho
+    const dados = await compraService.listarItensPorUsuario('local_user');
+    setProdutos(dados);
   };
 
   // Escuta a resposta da câmera ao retornar para a tela
@@ -61,13 +55,6 @@ export default function ListScreen() {
 
   // AÇÃO 1: Salva o item no SQLite local (Rotina 3)
   const handleSalvarItem = async () => {
-    const usuarioLogado = auth.currentUser;
-
-    if (!usuarioLogado) {
-      Alert.alert('Erro', 'Usuário não autenticado.');
-      return;
-    }
-
     if (!nome || !preco || !quantidade) {
       Alert.alert('Erro', 'Por favor, preencha todos os campos obrigatórios.');
       return;
@@ -89,7 +76,7 @@ export default function ListScreen() {
       const totalItemCalculado = valorUnitario * qtd;
 
       await compraService.salvarItemLocal({
-        userId: usuarioLogado.uid,
+        userId: 'local_user', // ID fixo offline
         nome: nome.trim(),
         precoUnitario: valorUnitario,
         quantidade: qtd,
@@ -103,7 +90,7 @@ export default function ListScreen() {
       setFotoUrl('');
       setModalVisivel(false);
 
-      carregarItensDoBancoLocal();
+      await carregarItensDoBancoLocal();
       Alert.alert('Sucesso', 'Item adicionado à sua lista local!');
 
     } catch (error) {
@@ -129,7 +116,7 @@ export default function ListScreen() {
           onPress: async () => {
             try {
               await compraService.excluirItemLocal(id);
-              carregarItensDoBancoLocal(); // Atualização dinâmica automática
+              await carregarItensDoBancoLocal(); // Atualização dinâmica automática
             } catch (error) {
               Alert.alert('Erro', 'Não foi possível excluir o item.');
             }
@@ -157,19 +144,13 @@ export default function ListScreen() {
 
     try {
       await compraService.atualizarQuantidadeLocal(item.id, novaQtd, item.precoUnitario);
-      carregarItensDoBancoLocal(); // Atualização dinâmica automática
+      await carregarItensDoBancoLocal(); // Atualização dinâmica automática
     } catch (error) {
       console.error("Erro ao atualizar quantidade:", error);
     }
   };
 
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-    } catch (error) {
-      Alert.alert('Erro', 'Falha ao deslogar.');
-    }
-  };
+  // REMOVIDO: Função handleLogout e o botão de Sair da interface
 
   return (
     <View style={styles.container}>
@@ -225,7 +206,7 @@ export default function ListScreen() {
           </View>
         )}
         ListEmptyComponent={
-          <Text style={styles.emptyText}>Nenhum item na sua lista. Toque no botão abaixo para escanear!</Text>
+          <Text style={styles.emptyText}>Nenhum item na sua lista. Toque no botão abaixo para adicionar!</Text>
         }
       />
 
@@ -234,10 +215,6 @@ export default function ListScreen() {
         onPress={() => navigation.navigate('Camera')}
       >
         <Text style={styles.floatingButtonText}>📷 Fotografar Produto</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity style={styles.logoutLink} onPress={handleLogout}>
-        <Text style={styles.logoutLinkText}>Sair da Conta</Text>
       </TouchableOpacity>
 
       {/* MODAL DE CADASTRO */}
@@ -319,8 +296,6 @@ const styles = StyleSheet.create({
   emptyText: { textAlign: 'center', color: '#888', marginTop: 40, fontSize: 16, paddingHorizontal: 20 },
   floatingButton: { backgroundColor: '#28a745', padding: 16, borderRadius: 30, alignItems: 'center', justifyContent: 'center', marginVertical: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84, elevation: 5 },
   floatingButtonText: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
-  logoutLink: { alignItems: 'center', paddingVertical: 5 },
-  logoutLinkText: { color: '#dc3545', fontWeight: 'bold', fontSize: 15 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
   modalContainer: { backgroundColor: '#fff', width: '90%', padding: 20, borderRadius: 15, alignItems: 'center' },
   modalTitle: { fontSize: 22, fontWeight: 'bold', marginBottom: 15, color: '#333' },

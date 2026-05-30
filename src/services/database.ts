@@ -1,12 +1,21 @@
 import * as SQLite from 'expo-sqlite';
 
-// Abre ou cria o arquivo de banco de dados local
-const dbLocal = SQLite.openDatabaseSync('comprasApp.db');
+let dbLocal: SQLite.SQLiteDatabase | null = null;
 
-export const inicializarBancoLocal = () => {
+// Substituímos o openDatabaseSync pelo openDatabaseAsync
+export async function getDatabase() {
+  if (!dbLocal) {
+    dbLocal = await SQLite.openDatabaseAsync('comprasApp.db');
+  }
+  return dbLocal;
+}
+
+// Transformamos a função em assíncrona
+export async function inicializarBancoLocal() {
   try {
-    // Força a criação da tabela usando a sintaxe estável e explícita do SQLite
-    dbLocal.execSync(`
+    const db = await getDatabase();
+    // Substituímos execSync por execAsync
+    await db.execAsync(`
       PRAGMA journal_mode = WAL;
       CREATE TABLE IF NOT EXISTS compras (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -18,10 +27,8 @@ export const inicializarBancoLocal = () => {
         totalItem REAL NOT NULL
       );
     `);
-    console.log(" Tabela 'compras' validada/criada com sucesso no SQLite.");
+    console.log("Tabela 'compras' validada/criada com sucesso no SQLite.");
   } catch (error) {
-    console.error("❌ Erro crítico ao criar tabela SQLite:", error);
+    console.error("Erro crítico ao criar tabela SQLite:", error);
   }
-};
-
-export { dbLocal };
+}
