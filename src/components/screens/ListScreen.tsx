@@ -11,7 +11,8 @@ import {
   Alert,
   ActivityIndicator,
   TouchableWithoutFeedback,
-  Keyboard
+  Keyboard,
+  SafeAreaView
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 // REMOVIDO: importações do Firebase
@@ -153,7 +154,8 @@ export default function ListScreen() {
   // REMOVIDO: Função handleLogout e o botão de Sair da interface
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
+      
       {/* Resumo de Valores */}
       <View style={styles.headerDashboard}>
         <Text style={styles.totalLabel}>Total da Compra:</Text>
@@ -278,7 +280,7 @@ export default function ListScreen() {
           </View>
         </TouchableWithoutFeedback>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 
