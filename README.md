@@ -4,18 +4,18 @@ O **ComprasApp** é um aplicativo mobile desenvolvido em React Native com Expo, 
 
 ---
 
-## 🚀 Funcionalidades Principais
+##  Funcionalidades Principais
 
-* **🔐 Autenticação com Firebase:** Sistema de login seguro integrado ao Firebase Authentication para garantir que cada usuário tenha sua lista exclusiva.
-* **📸 Captura de Imagens:** Integração com a câmera para registrar e armazenar localmente a foto real de cada produto na gôndola.
-* **🗄️ Banco de Dados Local (SQLite):** Persistência robusta de dados utilizando o SQLite para gerenciar o carrinho atual de forma offline e rápida.
-* **➕ Controles Dinâmicos:** Ajuste de quantidade de itens diretamente no card do produto com recálculo automático de valores totais.
-* **📜 Histórico de Compras:** Encerramento do carrinho com persistência dos dados agrupados por data e volume no histórico do usuário.
-* **🎨 Interface Moderna & Clean:** Layout profissional e responsivo utilizando uma paleta de cores sofisticada (Slate/Dark Mode e tons funcionais).
+* ** Autenticação com Firebase:** Sistema de login seguro integrado ao Firebase Authentication para garantir que cada usuário tenha sua lista exclusiva.
+* ** Captura de Imagens:** Integração com a câmera para registrar e armazenar localmente a foto real de cada produto na gôndola.
+* ** Banco de Dados Local (SQLite):** Persistência robusta de dados utilizando o SQLite para gerenciar o carrinho atual de forma offline e rápida.
+* ** Controles Dinâmicos:** Ajuste de quantidade de itens diretamente no card do produto com recálculo automático de valores totais.
+* ** Histórico de Compras:** Encerramento do carrinho com persistência dos dados agrupados por data e volume no histórico do usuário.
+* ** Interface Moderna & Clean:** Layout profissional e responsivo utilizando uma paleta de cores sofisticada (Slate/Dark Mode e tons funcionais).
 
 ---
 
-## 🛠️ Tecnologias Utilizadas
+##  Tecnologias Utilizadas
 
 O projeto foi construído utilizando as seguintes tecnologias e ecossistemas:
 
@@ -28,7 +28,7 @@ O projeto foi construído utilizando as seguintes tecnologias e ecossistemas:
 
 ---
 
-## 📦 Como Instalar e Rodar o Projeto
+##  Como Instalar e Rodar o Projeto
 
 Siga os passos abaixo para configurar o ambiente localmente.
 
