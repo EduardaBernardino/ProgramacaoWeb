@@ -1,4 +1,4 @@
-# 🛒 ComprasApp
+#  ComprasApp
 
 O **ComprasApp** é um aplicativo mobile desenvolvido em React Native com Expo, projetado para otimizar e organizar listas de compras de supermercado de forma prática e inteligente. Com ele, o usuário pode gerenciar itens no carrinho, atualizar quantidades de forma dinâmica, escanear/fotografar produtos e salvar o histórico de suas compras concluídas.
 
