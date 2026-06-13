@@ -3,104 +3,109 @@ import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Image, Ale
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 
-// MUDANÇA AQUI: Importando o FileSystem da rota legado exigida pelo Expo v54
-import * as FileSystem from 'expo-file-system/legacy';
-
-
 export default function CameraScreen({ navigation }: any) {
+  // Estado para controlar o loading (indicador de carregamento) na tela
   const [loading, setLoading] = useState(false);
+  // Estado para armazenar o caminho (URI) da imagem processada
   const [imageUri, setImageUri] = useState<string | null>(null);
 
-  // Tirar a foto assim que a tela abrir
+  // useEffect que roda uma vez assim que a tela é montada
+  // Dispara a abertura da câmera automaticamente para o usuário
   useEffect(() => {
     tirarFoto();
   }, []);
 
+  // Função assíncrona responsável por lidar com o fluxo da câmera
   const tirarFoto = async () => {
-    // 1. Solicita permissão da câmera
+    // Solicita a permissão de uso da câmera para o usuário
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
 
+    // Se o usuário recusar a permissão, exibe um alerta e volta para a tela anterior
     if (status !== 'granted') {
-      Alert.alert('Permissão necessária', 'Precisamos de acesso à câmera para fotografar o produto.');
+      Alert.alert(
+        'Permissão necessária',
+        'Precisamos de acesso à câmera para fotografar o produto.'
+      );
       navigation.goBack();
-      return;
+      return; // Interrompe a execução da função
     }
 
-    // 2. Abre a câmera para captura (CRITÉRIO: Captura da imagem via câmera - 0,2pt)
-    // Altere apenas essa propriedade dentro do launchCameraAsync:
+    // Abre a câmera nativa do aparelho para o usuário tirar a foto
     const result = await ImagePicker.launchCameraAsync({
-    mediaTypes: ['images'], // Nova sintaxe do Expo para evitar o Warning
-    quality: 1,
-});
+      mediaTypes: ['images'], // Define que o foco são apenas imagens
+      quality: 1,            // Captura na qualidade máxima original
+    });
 
-
+    // Se o usuário fechar a câmera sem tirar a foto, cancela o fluxo e volta de tela
     if (result.canceled) {
       navigation.goBack();
       return;
     }
 
+    // Recupera o caminho (URI) temporário da foto original recém-tirada
     const uriOriginal = result.assets[0].uri;
-    setImageUri(uriOriginal);
 
-    // 3. Tratamento Obrigatório (CRITÉRIO: Resize e Compressão - 0,2pt)
     try {
+      // Ativa a tela de loading para o usuário ver que a imagem está processando
       setLoading(true);
 
+      // Manipula a imagem para otimizá-la antes de enviar ou salvar
       const imagemTratada = await ImageManipulator.manipulateAsync(
         uriOriginal,
-        [{ resize: { width: 500 } }],
-        { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG }
+        [{ resize: { width: 500 } }], // Redimensiona a largura para 500px (mantém a proporção da altura)
+        {
+          compress: 0.6, // Comprime a qualidade para 60% (reduz muito o peso do arquivo)
+          format: ImageManipulator.SaveFormat.JPEG, // Converte/garante o formato JPEG
+        }
       );
 
-      // 4. Processamento e conversão para Base64
-      await converterESalvar(imagemTratada.uri);
+      // Salva o caminho da nova imagem otimizada no estado para visualização
+      setImageUri(imagemTratada.uri);
 
+      // Desativa o indicador de carregamento
+      setLoading(false);
+
+      // Exibe um alerta de sucesso com um botão de ação
+      Alert.alert(
+        'Sucesso!',
+        'Imagem capturada e processada com sucesso.',
+        [
+          {
+            text: 'Continuar Cadastro',
+            onPress: () => {
+              // Navega para a tela 'List', passando a URI da foto tratada como parâmetro
+              navigation.navigate('List', {
+                fotoUrl: imagemTratada.uri,
+              });
+            },
+          },
+        ]
+      );
     } catch (error) {
+      // Trata possíveis erros no processo de manipulação do arquivo
       console.error(error);
-      Alert.alert('Erro', 'Falha ao processar a imagem.');
-      setLoading(false);
-    }
-  };
-
-  const converterESalvar = async (uriPath: string) => {
-    try {
-      // Passamos a string direta 'base64' no objeto de opções, removendo o erro do TypeScript
-      const base64Image = await FileSystem.readAsStringAsync(uriPath, {
-        encoding: 'base64',
-      });
-
-      const fotoStringFinal = `data:image/jpeg;base64,${base64Image}`;
-
-      setLoading(false);
-
-      // Exibe sucesso e retorna a string de texto da foto para a tela List por parâmetro
-      Alert.alert('Sucesso!', 'Imagem capturada e processada com sucesso.', [
-        {
-          text: 'Continuar Cadastro',
-          onPress: () => {
-            navigation.navigate('List', { fotoUrl: fotoStringFinal });
-          }
-        }
-      ]);
-
-    } catch (error) {
-      console.error(error);
-      Alert.alert('Erro no processamento', 'Não foi possível ler o arquivo da imagem.');
-      setLoading(false);
+      Alert.alert(
+        'Erro',
+        'Falha ao processar a imagem.'
+      );
+      setLoading(false); // Garante que o loading feche mesmo em caso de erro
     }
   };
 
   return (
     <View style={styles.container}>
+      {/* Se houver uma imagem processada no estado, exibe ela preenchendo a tela */}
       {imageUri && <Image source={{ uri: imageUri }} style={styles.preview} />}
 
+      {/* Se estiver em estado de loading, exibe o overlay escuro com o spinner */}
       {loading && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color="#007bff" />
-          <Text style={styles.loadingText}>Tratando e convertendo imagem em texto...</Text>
+          <Text style={styles.loadingText}>Otimizando e tratando imagem...</Text>
         </View>
       )}
 
+      {/* Se NÃO estiver carregando, exibe o botão para o usuário tentar tirar outra foto */}
       {!loading && (
         <TouchableOpacity style={styles.button} onPress={tirarFoto}>
           <Text style={styles.buttonText}>Tirar Outra Foto</Text>
@@ -110,11 +115,45 @@ export default function CameraScreen({ navigation }: any) {
   );
 }
 
+// Estilizações da tela utilizando StyleSheet
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' },
-  preview: { width: '100%', height: '100%', position: 'absolute' },
-  loadingOverlay: { backgroundColor: 'rgba(0,0,0,0.8)', padding: 20, borderRadius: 10, alignItems: 'center', width: '80%' },
-  loadingText: { color: '#fff', marginTop: 15, textAlign: 'center', fontSize: 16 },
-  button: { position: 'absolute', bottom: 40, backgroundColor: '#007bff', padding: 15, borderRadius: 8, width: '80%', alignItems: 'center' },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' }
+  container: {
+    flex: 1,
+    backgroundColor: '#000',
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  preview: {
+    width: '100%',
+    height: '100%',
+    position: 'absolute' // Faz a imagem ficar de fundo
+  },
+  loadingOverlay: {
+    backgroundColor: 'rgba(0,0,0,0.8)', // Fundo preto com 80% de opacidade
+    padding: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    width: '80%'
+  },
+  loadingText: {
+    color: '#fff',
+    marginTop: 15,
+    textAlign: 'center',
+    fontSize: 16
+  },
+  button: {
+    position: 'absolute',
+    bottom: 40, // Posiciona o botão fixo na parte inferior da tela
+    backgroundColor: '#007bff',
+    padding: 15,
+    borderRadius: 8,
+    width: '80%',
+    alignItems: 'center',
+    zIndex: 10 // Garante que o botão fique acima da imagem de preview
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold'
+  }
 });

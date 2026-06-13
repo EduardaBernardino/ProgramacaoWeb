@@ -1,18 +1,40 @@
 import * as SQLite from 'expo-sqlite';
 
-// Abre ou cria o arquivo de banco de dados local
+// Abre ou cria o arquivo de banco de dados físico no armazenamento local do dispositivo
 const dbLocal = SQLite.openDatabaseSync('comprasApp.db');
 
 export const inicializarBancoLocal = () => {
   try {
-    // Força a criação da tabela usando a sintaxe estável e explícita do SQLite
+    // Executa em lote (batch) a configuração e criação das tabelas essenciais
     dbLocal.execSync(`
+      -- Ativa o modo Write-Ahead Logging (WAL) para otimizar a concorrência e velocidade de escrita/leitura
       PRAGMA journal_mode = WAL;
+
+      -- TABELA: compras (Armazena o carrinho ativo atual de cada usuário)
       CREATE TABLE IF NOT EXISTS compras (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         userId TEXT NOT NULL,
         nome TEXT NOT NULL,
         fotoUrl TEXT,
+        precoUnitario REAL NOT NULL,
+        quantidade INTEGER NOT NULL,
+        totalItem REAL NOT NULL
+      );
+
+      -- TABELA: historico_compras (Registro mestre/cabeçalho de fechamento da compra)
+      CREATE TABLE IF NOT EXISTS historico_compras (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        userId TEXT NOT NULL,
+        dataCompra TEXT NOT NULL,
+        totalCompra REAL NOT NULL,
+        quantidadeItens INTEGER NOT NULL
+      );
+
+      -- TABELA: historico_itens (Itens vinculados a uma compra fechada - Relacionamento 1:N)
+      CREATE TABLE IF NOT EXISTS historico_itens (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        historicoId INTEGER NOT NULL, -- Atua como a chave estrangeira vinculada a historico_compras(id)
+        nome TEXT NOT NULL,
         precoUnitario REAL NOT NULL,
         quantidade INTEGER NOT NULL,
         totalItem REAL NOT NULL

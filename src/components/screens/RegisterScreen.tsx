@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, TextInput, TouchableOpacity, View, Alert, Image } from 'react-native'; // Adicionado Image aqui
+import { StyleSheet, Text, TextInput, TouchableOpacity, View, Alert, Image } from 'react-native';
 import { createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 import { auth } from '../../services/firebase';
 
@@ -8,44 +8,44 @@ export default function RegisterScreen({ navigation }: any) {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
-
+  // --- LÓGICA DE CADASTRO ---
   const handleRegister = async () => {
-  if (!email || !password || !confirmPassword) {
-    Alert.alert('Erro', 'Preencha todos os campos.');
-    return;
-  }
+    // 1. Validação de consistência básica (Campos vazios)
+    if (!email || !password || !confirmPassword) {
+      Alert.alert('Erro', 'Preencha todos os campos.');
+      return;
+    }
 
-  if (password !== confirmPassword) {
-    Alert.alert('Erro', 'As senhas não coincidem.');
-    return;
-  }
+    // 2. Validação local de igualdade de senhas para evitar requisição inútil à rede
+    if (password !== confirmPassword) {
+      Alert.alert('Erro', 'As senhas não coincidem.');
+      return;
+    }
 
-  if (password.length < 6) {
-    Alert.alert('Erro', 'A senha deve ter pelo menos 6 caracteres.');
-    return;
-  }
+    // 3. Validação de tamanho mínimo exigido nativamente pela política padrão do Firebase Auth
+    if (password.length < 6) {
+      Alert.alert('Erro', 'A senha deve ter pelo menos 6 caracteres.');
+      return;
+    }
 
-  try {
-    // 1. Cria a conta no Firebase
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    try {
+      // Dispara a criação da conta. Ao retornar com sucesso, o usuário é logado automaticamente.
+      // O listener global da aplicação captura a mudança de estado e reconstrói o fluxo de rotas.
+      await createUserWithEmailAndPassword(auth, email, password);
 
-    // 2. Desloga imediatamente para não disparar a mudança automática de rota
-    await signOut(auth);
+      // Log para controle de debug; evita-se disparar Alerts de sucesso que concorram
+      // visualmente com a desmontagem imediata da tela gerenciada pelo navegador.
+      console.log('Usuário cadastrado e logado automaticamente pelo Firebase.');
 
-    // 3. Exibe o alerta de sucesso e manda o usuário de volta para a tela de Login
-    Alert.alert('Sucesso!', 'Conta criada com sucesso.', [
-      { text: 'Voltar à tela de login', onPress: () => navigation.navigate('Login') }
-    ]);
-
-  } catch (error: any) {
-    console.error(error);
-    Alert.alert('Erro no cadastro', 'Verifique o e-mail ou tente outra senha.');
-  }
-};
+    } catch (error: any) {
+      console.error(error);
+      // Fallback genérico para cobrir e-mails duplicados, formatos inválidos ou quedas de conexão
+      Alert.alert('Erro no cadastro', 'Verifique o e-mail ou tente outra senha.');
+    }
+  };
 
   return (
     <View style={styles.container}>
-      {/* 1. INSERÇÃO DA LOGO MENOR ADAPTADA PARA O CADASTRO */}
       <Image
         source={require('../../../assets/logo.png')}
         style={styles.logo}
@@ -81,7 +81,8 @@ export default function RegisterScreen({ navigation }: any) {
         <Text style={styles.buttonText}>Cadastrar</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity onPress={() => navigation.navigate('Login')}>
+      {/* Retorna para a tela de login utilizando a pilha existente, preservando o histórico */}
+      <TouchableOpacity onPress={() => navigation.goBack()}>
         <Text style={styles.linkText}>Já tem uma conta? Voltar para o Login</Text>
       </TouchableOpacity>
     </View>
@@ -89,14 +90,10 @@ export default function RegisterScreen({ navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', padding: 20, backgroundColor: '#fff', alignItems: 'center' }, // Adicionado alignItems para alinhar a logo
-  input: { width: '100%', borderWidth: 1, borderColor: '#ccc', padding: 12, borderRadius: 8, marginBottom: 15, fontSize: 16 }, // Adicionado width 100%
-  button: { backgroundColor: '#28a745', padding: 15, borderRadius: 8, alignItems: 'center', marginTop: 10, width: '100%' }, // Adicionado width 100%
+  container: { flex: 1, justifyContent: 'center', padding: 20, backgroundColor: '#fff', alignItems: 'center' },
+  input: { width: '100%', borderWidth: 1, borderColor: '#ccc', padding: 12, borderRadius: 8, marginBottom: 15, fontSize: 16 },
+  button: { backgroundColor: '#28a745', padding: 15, borderRadius: 8, alignItems: 'center', marginTop: 10, width: '100%' },
   buttonText: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
   linkText: { color: '#007bff', marginTop: 20, textAlign: 'center', fontSize: 16 },
-  logo: {
-    width: 140,  // Diminuído de 180 para 140 para equilibrar os 3 inputs na tela móvel
-    height: 140,
-    marginBottom: 20,
-  }
+  logo: { width: 140, height: 140, marginBottom: 20 }
 });
