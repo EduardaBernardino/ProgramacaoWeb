@@ -1,20 +1,107 @@
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 
+<<<<<<< HEAD
 // Importamos a tela de Login de volta
+=======
+import { auth } from '../services/firebase';
+
+>>>>>>> 75b3296f34bbd9a594054ae73e85703037f8d8b9
 import LoginScreen from '../components/screens/LoginScreen';
 import ListScreen from '../components/screens/ListScreen';
 import CameraScreen from '../components/screens/CameraScreen';
+import HistoryScreen from '../components/screens/HistoryScreen';
+import HistoryChartScreen from '../components/screens/HistoryChartScreen';
 
 const Stack = createStackNavigator();
 
+export type RootStackParamList = {
+  Login: undefined;
+  Register: undefined;
+  List: undefined;
+  Camera: undefined;
+  History: undefined;
+  HistoryChart: undefined;
+};
+
 export default function Routes() {
+<<<<<<< HEAD
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       {/* A primeira Screen instalada dentro do Navigator é a que abre primeiro */}
       <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="List" component={ListScreen} options={{ title: 'Shopping List' }} />
       <Stack.Screen name="Camera" component={CameraScreen} options={{ title: 'Tirar Foto do Produto' }} />
+=======
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // --- LÓGICA DE SESSÃO GLOBAL ---
+  useEffect(() => {
+    // Escuta em tempo real se o usuário entrou, saiu ou mudou de conta no Firebase.
+    // Isso evita ter que gerenciar tokens ou IDs manualmente via AsyncStorage.
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser); // Define o objeto do usuário logado ou null
+      setLoading(false);    // Desativa a tela de carregamento assim que obtém a resposta do Firebase
+    });
+
+    // Garante que o listener seja cancelado quando o componente for desmontado, evitando vazamento de memória
+    return unsubscribe;
+  }, []);
+
+  // Bloqueia a renderização da árvore de navegação até que o Firebase confirme o estado do usuário
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#0000ff" />
+      </View>
+    );
+  }
+
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      {/* --- RENDERIZAÇÃO CONDICIONAL DE FLUXOS --- */}
+      {/* Se houver um usuário logado, as telas públicas de Login/Cadastro deixam de existir na pilha.
+          Se ele deslogar, as telas protegidas são desmontadas imediatamente. */}
+      {user ? (
+        // FLUXO AUTENTICADO (Telas protegidas)
+        <>
+          <Stack.Screen
+            name="List"
+            component={ListScreen}
+            options={{ title: 'Shopping List' }}
+          />
+
+          <Stack.Screen
+            name="Camera"
+            component={CameraScreen}
+            options={{
+              title: 'Tirar Foto do Produto',
+              headerShown: true,
+              headerTintColor: '#fff',
+              headerStyle: { backgroundColor: '#000' }
+            }}
+          />
+
+          <Stack.Screen
+            name="History"
+            component={HistoryScreen}
+          />
+
+          <Stack.Screen
+            name="HistoryChart"
+            component={HistoryChartScreen}
+            options={{ headerShown: false }}
+          />
+        </>
+      ) : (
+        // FLUXO ANÔNIMO (Autenticação)
+        <>
+          <Stack.Screen name="Login" component={LoginScreen} />
+          <Stack.Screen name="Register" component={RegisterScreen} />
+        </>
+      )}
+>>>>>>> 75b3296f34bbd9a594054ae73e85703037f8d8b9
     </Stack.Navigator>
   );
 }
