@@ -12,10 +12,6 @@ import {
   ActivityIndicator,
   TouchableWithoutFeedback,
   Keyboard,
-<<<<<<< HEAD
-  SafeAreaView
-=======
->>>>>>> 75b3296f34bbd9a594054ae73e85703037f8d8b9
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, useNavigation } from '@react-navigation/native';
@@ -34,13 +30,6 @@ export default function ListScreen() {
   const [fotoUrl, setFotoUrl] = useState('');
   const [loading, setLoading] = useState(false);
 
-<<<<<<< HEAD
-  // Busca a lista filtrada do banco de dados local
-  const carregarItensDoBancoLocal = async () => {
-    // Como o app agora é offline, usamos um ID fixo para o aparelho
-    const dados = await compraService.listarItensPorUsuario('local_user');
-    setProdutos(dados);
-=======
   // Busca os itens ativos salvos no banco local SQLite do dispositivo
   const carregarItensDoBancoLocal = () => {
     const usuarioLogado = auth.currentUser;
@@ -51,7 +40,6 @@ export default function ListScreen() {
       Alert.alert('Sessão Expirada', 'Por favor, realize o login novamente.');
       navigation.navigate('Login');
     }
->>>>>>> 75b3296f34bbd9a594054ae73e85703037f8d8b9
   };
 
   // Monitora se a tela recebeu uma foto vinda da tela de Câmera para abrir o formulário
@@ -72,10 +60,6 @@ export default function ListScreen() {
   // --- INTERAÇÕES COM O BANCO DE DADOS LOCAL (SQLITE) ---
 
   const handleSalvarItem = async () => {
-<<<<<<< HEAD
-    if (!nome || !preco || !quantidade) {
-      Alert.alert('Erro', 'Por favor, preencha todos os campos obrigatórios.');
-=======
     Keyboard.dismiss();
     const usuarioLogado = auth.currentUser;
 
@@ -86,7 +70,6 @@ export default function ListScreen() {
 
     if (!nome.trim() || !preco.trim() || !quantidade.trim() || !fotoUrl) {
       Alert.alert('Erro', 'Por favor, preencha todos os campos e capture a foto do produto.');
->>>>>>> 75b3296f34bbd9a594054ae73e85703037f8d8b9
       return;
     }
 
@@ -122,11 +105,7 @@ export default function ListScreen() {
       setFotoUrl('');
       setModalVisivel(false);
 
-<<<<<<< HEAD
-      await carregarItensDoBancoLocal();
-=======
       carregarItensDoBancoLocal(); // Atualiza a FlatList com o novo item adicionado
->>>>>>> 75b3296f34bbd9a594054ae73e85703037f8d8b9
       Alert.alert('Sucesso', 'Item adicionado à sua lista local!');
     } catch (error) {
       console.error("Erro ao salvar no SQLite: ", error);
@@ -150,11 +129,7 @@ export default function ListScreen() {
           onPress: async () => {
             try {
               await compraService.excluirItemLocal(id);
-<<<<<<< HEAD
-              await carregarItensDoBancoLocal(); // Atualização dinâmica automática
-=======
               carregarItensDoBancoLocal(); // Atualiza o estado da lista após a remoção
->>>>>>> 75b3296f34bbd9a594054ae73e85703037f8d8b9
             } catch (error) {
               Alert.alert('Erro', 'Não foi possível excluir the item.');
             }
@@ -207,11 +182,7 @@ export default function ListScreen() {
     try {
       // Dispara o update no banco passando o novo valor total recalculado
       await compraService.atualizarQuantidadeLocal(item.id, novaQtd, item.precoUnitario);
-<<<<<<< HEAD
-      await carregarItensDoBancoLocal(); // Atualização dinâmica automática
-=======
       carregarItensDoBancoLocal();
->>>>>>> 75b3296f34bbd9a594054ae73e85703037f8d8b9
     } catch (error) {
       console.error("Erro ao atualizar quantidade:", error);
     }
@@ -264,11 +235,6 @@ export default function ListScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-<<<<<<< HEAD
-      
-      {/* Resumo de Valores */}
-=======
->>>>>>> 75b3296f34bbd9a594054ae73e85703037f8d8b9
       <View style={styles.headerDashboard}>
         <Text style={styles.totalLabel}>Total no Carrinho</Text>
         <Text style={styles.totalValue}>R$ {valorTotalCompra.toFixed(2)}</Text>
@@ -317,14 +283,10 @@ export default function ListScreen() {
           </View>
         )}
         ListEmptyComponent={
-<<<<<<< HEAD
-          <Text style={styles.emptyText}>Nenhum item na sua lista. Toque no botão abaixo para adicionar!</Text>
-=======
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyIcon}>🛒</Text>
             <Text style={styles.emptyText}>Seu carrinho está vazio. Toque em fotografar para começar!</Text>
           </View>
->>>>>>> 75b3296f34bbd9a594054ae73e85703037f8d8b9
         }
       />
 
@@ -336,9 +298,6 @@ export default function ListScreen() {
           <Text style={styles.floatingButtonText}> Fotografar Produto</Text>
         </TouchableOpacity>
 
-<<<<<<< HEAD
-      {/* MODAL DE CADASTRO */}
-=======
         <View style={styles.secondaryActionsRow}>
           <TouchableOpacity style={[styles.inlineButton, styles.outlineButton]} onPress={handleLimparLista}>
             <Text style={styles.outlineButtonText}> Limpar</Text>
@@ -358,7 +317,6 @@ export default function ListScreen() {
         </TouchableOpacity>
       </View>
 
->>>>>>> 75b3296f34bbd9a594054ae73e85703037f8d8b9
       <Modal visible={modalVisivel} animationType="slide" transparent>
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <View style={styles.modalOverlay}>
@@ -427,68 +385,6 @@ export default function ListScreen() {
 }
 
 const styles = StyleSheet.create({
-<<<<<<< HEAD
-  container: { flex: 1, backgroundColor: '#f8f9fa', padding: 15 },
-  headerDashboard: { backgroundColor: '#007bff', padding: 20, borderRadius: 12, alignItems: 'center', marginBottom: 15 },
-  totalLabel: { color: '#fff', fontSize: 16, opacity: 0.9 },
-  totalValue: { color: '#fff', fontSize: 32, fontWeight: 'bold', marginTop: 5 },
-  cardItem: { flexDirection: 'row', backgroundColor: '#fff', padding: 10, borderRadius: 10, marginBottom: 10, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.2, shadowRadius: 1.41, elevation: 2 },
-  cardImage: { width: 70, height: 70, borderRadius: 8, backgroundColor: '#eee' },
-  cardContent: { flex: 1, marginLeft: 12 },
-  cardTitle: { fontSize: 18, fontWeight: 'bold', color: '#333' },
-  cardSub: { fontSize: 14, color: '#666', marginTop: 2 },
-  cardTotalItem: { fontSize: 15, fontWeight: 'bold', color: '#28a745', marginTop: 4 },
-  emptyText: { textAlign: 'center', color: '#888', marginTop: 40, fontSize: 16, paddingHorizontal: 20 },
-  floatingButton: { backgroundColor: '#28a745', padding: 16, borderRadius: 30, alignItems: 'center', justifyContent: 'center', marginVertical: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84, elevation: 5 },
-  floatingButtonText: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
-  modalContainer: { backgroundColor: '#fff', width: '90%', padding: 20, borderRadius: 15, alignItems: 'center' },
-  modalTitle: { fontSize: 22, fontWeight: 'bold', marginBottom: 15, color: '#333' },
-  modalImagePreview: { width: 120, height: 120, borderRadius: 10, marginBottom: 5 },
-  formContainer: { width: '100%', marginBottom: 15 },
-  inputLabel: { fontSize: 14, fontWeight: '600', color: '#495057', alignSelf: 'flex-start', marginBottom: 4, marginTop: 10 },
-  input: { width: '100%', borderWidth: 1, borderColor: '#ced4da', padding: 12, borderRadius: 8, fontSize: 16, backgroundColor: '#fff', color: '#333' },
-  modalActions: { flexDirection: 'row', width: '100%', justifyContent: 'space-between', marginTop: 10 },
-  modalBtn: { flex: 1, padding: 15, borderRadius: 8, alignItems: 'center', marginHorizontal: 5 },
-  btnSave: { backgroundColor: '#28a745' },
-  btnCancel: { backgroundColor: '#6c757d' },
-  btnText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
-  quantityContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 5,
-    marginBottom: 2
-  },
-  qtyButton: {
-    backgroundColor: '#e9ecef',
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginHorizontal: 5
-  },
-  qtyButtonText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#495057'
-  },
-  precoUnitarioText: {
-    fontSize: 14,
-    color: '#666',
-    marginLeft: 5
-  },
-  deleteButton: {
-    padding: 10,
-    justifyContent: 'center',
-    alignItems: 'center'
-  },
-  deleteButtonText: {
-    color: '#dc3545',
-    fontSize: 20,
-    fontWeight: 'bold'
-  }
-=======
   container: { flex: 1, backgroundColor: '#f4f6f9' },
   headerDashboard: { backgroundColor: '#1e293b', paddingVertical: 25, paddingHorizontal: 20, borderBottomLeftRadius: 20, borderBottomRightRadius: 20, alignItems: 'center', marginBottom: 15, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 6, elevation: 5 },
   totalLabel: { color: '#94a3b8', fontSize: 13, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 1 },
@@ -532,5 +428,4 @@ const styles = StyleSheet.create({
   btnSave: { backgroundColor: '#10b981' },
   btnCancel: { backgroundColor: '#64748b' },
   btnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
->>>>>>> 75b3296f34bbd9a594054ae73e85703037f8d8b9
 });
