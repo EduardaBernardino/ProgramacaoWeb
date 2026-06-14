@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { createStackNavigator } from '@react-navigation/stack';
 
+// --- Imports do Firebase Auth ---
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { auth } from '../services/firebase';
 
+// --- Imports das Telas ---
 import LoginScreen from '../components/screens/LoginScreen';
 import RegisterScreen from '../components/screens/RegisterScreen';
 import ListScreen from '../components/screens/ListScreen';
@@ -12,8 +14,7 @@ import CameraScreen from '../components/screens/CameraScreen';
 import HistoryScreen from '../components/screens/HistoryScreen';
 import HistoryChartScreen from '../components/screens/HistoryChartScreen';
 
-const Stack = createStackNavigator();
-
+// Definição estrita das rotas para o TypeScript
 export type RootStackParamList = {
   Login: undefined;
   Register: undefined;
@@ -23,6 +24,9 @@ export type RootStackParamList = {
   HistoryChart: undefined;
 };
 
+// TIPADO: Passamos a lista de parâmetros para o criador do Stack
+const Stack = createStackNavigator<RootStackParamList>();
+
 export default function Routes() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -30,21 +34,20 @@ export default function Routes() {
   // --- LÓGICA DE SESSÃO GLOBAL ---
   useEffect(() => {
     // Escuta em tempo real se o usuário entrou, saiu ou mudou de conta no Firebase.
-    // Isso evita ter que gerenciar tokens ou IDs manualmente via AsyncStorage.
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser); // Define o objeto do usuário logado ou null
       setLoading(false);    // Desativa a tela de carregamento assim que obtém a resposta do Firebase
     });
 
-    // Garante que o listener seja cancelado quando o componente for desmontado, evitando vazamento de memória
+    // Garante que o listener seja cancelado quando o componente for desmontado
     return unsubscribe;
   }, []);
 
   // Bloqueia a renderização da árvore de navegação até que o Firebase confirme o estado do usuário
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#0000ff" />
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' }}>
+        <ActivityIndicator size="large" color="#007bff" />
       </View>
     );
   }
@@ -52,8 +55,6 @@ export default function Routes() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       {/* --- RENDERIZAÇÃO CONDICIONAL DE FLUXOS --- */}
-      {/* Se houver um usuário logado, as telas públicas de Login/Cadastro deixam de existir na pilha.
-          Se ele deslogar, as telas protegidas são desmontadas imediatamente. */}
       {user ? (
         // FLUXO AUTENTICADO (Telas protegidas)
         <>
@@ -95,3 +96,33 @@ export default function Routes() {
     </Stack.Navigator>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
