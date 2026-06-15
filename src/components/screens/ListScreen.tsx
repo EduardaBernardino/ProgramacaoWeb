@@ -15,8 +15,10 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, useNavigation } from '@react-navigation/native';
-// REMOVIDO: importações do Firebase
+import { auth } from '../../services/firebase';
+import { signOut } from 'firebase/auth';
 import { compraService, ItemCompra } from '../../services/compraService';
+
 
 export default function ListScreen() {
   const navigation = useNavigation<any>();
@@ -31,10 +33,10 @@ export default function ListScreen() {
   const [loading, setLoading] = useState(false);
 
   // Busca os itens ativos salvos no banco local SQLite do dispositivo
-  const carregarItensDoBancoLocal = () => {
+  const carregarItensDoBancoLocal = async () => {
     const usuarioLogado = auth.currentUser;
     if (usuarioLogado) {
-      const dados = compraService.listarItensPorUsuario(usuarioLogado.uid);
+      const dados = await compraService.listarItensPorUsuario(usuarioLogado.uid);
       setProdutos(dados);
     } else {
       Alert.alert('Sessão Expirada', 'Por favor, realize o login novamente.');
@@ -90,7 +92,7 @@ export default function ListScreen() {
 
       // Grava o item estruturado na tabela temporária do carrinho
       await compraService.salvarItemLocal({
-        userId: 'local_user', // ID fixo offline
+      userId: usuarioLogado.uid,
         nome: nome.trim(),
         precoUnitario: valorUnitario,
         quantidade: qtd,
@@ -187,8 +189,13 @@ export default function ListScreen() {
       console.error("Erro ao atualizar quantidade:", error);
     }
   };
-
-  // REMOVIDO: Função handleLogout e o botão de Sair da interface
+const handleLogout = async () => {
+  try {
+    await signOut(auth);
+  } catch (error) {
+    Alert.alert('Erro', 'Não foi possível sair da conta.');
+  }
+};
 
   // --- FECHAMENTO E MIGRAÇÃO PARA O HISTÓRICO ---
   const handleFinalizarCompra = async () => {

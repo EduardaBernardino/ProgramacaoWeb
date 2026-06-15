@@ -1,13 +1,12 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { View, ActivityIndicator } from 'react-native';
 import { createStackNavigator } from '@react-navigation/stack';
 
-<<<<<<< HEAD
-// Importamos a tela de Login de volta
-=======
+import { onAuthStateChanged, User } from 'firebase/auth';
 import { auth } from '../services/firebase';
 
->>>>>>> 75b3296f34bbd9a594054ae73e85703037f8d8b9
 import LoginScreen from '../components/screens/LoginScreen';
+import RegisterScreen from '../components/screens/RegisterScreen';
 import ListScreen from '../components/screens/ListScreen';
 import CameraScreen from '../components/screens/CameraScreen';
 import HistoryScreen from '../components/screens/HistoryScreen';
@@ -25,14 +24,6 @@ export type RootStackParamList = {
 };
 
 export default function Routes() {
-<<<<<<< HEAD
-  return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      {/* A primeira Screen instalada dentro do Navigator é a que abre primeiro */}
-      <Stack.Screen name="Login" component={LoginScreen} />
-      <Stack.Screen name="List" component={ListScreen} options={{ title: 'Shopping List' }} />
-      <Stack.Screen name="Camera" component={CameraScreen} options={{ title: 'Tirar Foto do Produto' }} />
-=======
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -101,7 +92,6 @@ export default function Routes() {
           <Stack.Screen name="Register" component={RegisterScreen} />
         </>
       )}
->>>>>>> 75b3296f34bbd9a594054ae73e85703037f8d8b9
     </Stack.Navigator>
   );
 }

@@ -1,4 +1,4 @@
-import { getDatabase } from './database';
+import { dbLocal } from './database';
 
 export interface ItemCompra {
   id?: number;
@@ -48,19 +48,24 @@ export const compraService = {
   },
 
   // Retorna em lote todos os itens do carrinho atual pertencentes estritamente ao usuário informado
-  listarItensPorUsuario: (userId: string): ItemCompra[] => {
-    try {
-      const db = await getDatabase();
-      const resultados = await db.getAllAsync<ItemCompra>(
-        'SELECT * FROM compras WHERE userId = ? ORDER BY id DESC',
-        [userId]
-      );
-      return resultados;
-    } catch (error) {
-      console.error('Erro ao buscar itens no SQLite:', error);
-      return [];
-    }
-  },
+  listarItensPorUsuario: async (
+  userId: string
+): Promise<ItemCompra[]> => {
+  try {
+    return dbLocal.getAllSync<ItemCompra>(
+      `
+      SELECT *
+      FROM compras
+      WHERE userId = ?
+      ORDER BY id DESC
+      `,
+      [userId]
+    );
+  } catch (error) {
+    console.error(error);
+    return [];
+  }
+},
 
   // Remove um item específico da tabela compras usando sua chave primária (id)
   excluirItemLocal: (id: number): Promise<void> => {
