@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import { salvarImagemPersistente } from '../../services/compraService';
+import { useRef } from 'react';
 import {
   View,
   Text,
@@ -16,14 +18,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { auth } from '../../services/firebase';
-
-
-
 import { compraService, ItemCompra } from '../../services/compraService';
 import { signOut } from 'firebase/auth';
 
-
 export default function ListScreen() {
+  // Instancia ganchos de navegação para alternar entre telas e ler parâmetros de rotas
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
 
@@ -35,119 +34,119 @@ export default function ListScreen() {
   const [fotoUrl, setFotoUrl] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Busca os itens ativos salvos no banco local SQLite do dispositivo
-const carregarItensDoBancoLocal = async () => {
-  const usuarioLogado = auth.currentUser;
-  if (usuarioLogado) {
-    const dados = await compraService.listarItensPorUsuario(usuarioLogado.uid);
-    setProdutos(dados);
-  }
-};
+  const carregarItensDoBancoLocal = async () => {
+    const usuarioLogado = auth.currentUser;
+    if (usuarioLogado) {
+      const dados = await compraService.listarItensPorUsuario(usuarioLogado.uid);
+      setProdutos(dados);
+    }
+  };
 
-  // Monitora se a tela recebeu uma foto vinda da tela de Câmera para abrir o formulário
+  // Escuta ativa (Listener): Se o usuário tirou uma foto na tela de Câmera, a imagem é recebida via parâmetro.
+  // O app joga a URI no estado, abre o formulário e limpa o parâmetro da rota para não re-disparar o modal por engano.
   useEffect(() => {
     if (route.params?.fotoUrl) {
       setFotoUrl(route.params.fotoUrl);
       setModalVisivel(true);
+      navigation.setParams({ fotoUrl: undefined }); // limpa para não retrigger
     }
   }, [route.params?.fotoUrl]);
-
+// Carrega os itens do carrinho local imediatamente quando a tela é aberta pela primeira vez
   useEffect(() => {
-     carregarItensDoBancoLocal();
+    carregarItensDoBancoLocal();
   }, []);
 
   // Calcula em tempo real a soma acumulada de todos os itens do carrinho
   const valorTotalCompra = produtos.reduce((acc, item) => acc + item.totalItem, 0);
 
-  // --- INTERAÇÕES COM O BANCO DE DADOS LOCAL (SQLITE) ---
 
+// dentro do componente
+  const salvandoRef = useRef(false);
+// Guarda uma referência mutável para evitar que o usuário clique duas vezes no botão e duplique o item no banco
   const handleSalvarItem = async () => {
+    if (salvandoRef.current) return;
+    salvandoRef.current = true;
+
     Keyboard.dismiss();
     const usuarioLogado = auth.currentUser;
 
     if (!usuarioLogado) {
       Alert.alert('Erro', 'Usuário não autenticado.');
+      salvandoRef.current = false;
       return;
     }
 
     if (!nome.trim() || !preco.trim() || !quantidade.trim() || !fotoUrl) {
       Alert.alert('Erro', 'Por favor, preencha todos os campos e capture a foto do produto.');
+      salvandoRef.current = false;
       return;
     }
 
     try {
       setLoading(true);
-      // Sanitiza a string do preço para converter o padrão de moeda PT-BR para número decimal (Float) válido
       const precoLimpo = preco.replace('R$', '').replace(',', '.').trim();
       const valorUnitario = parseFloat(precoLimpo);
       const qtd = parseInt(quantidade.trim(), 10);
 
+// Proteção 3: Evita dados corrompidos ou inserções matemáticas inválidas (ex: quantidades negativas)
       if (isNaN(valorUnitario) || isNaN(qtd) || valorUnitario <= 0 || qtd <= 0) {
         Alert.alert('Erro', 'Verifique os valores inseridos no preço e quantidade.');
-        setLoading(false);
         return;
       }
 
       const totalItemCalculado = valorUnitario * qtd;
 
-      // Grava o item estruturado na tabela temporária do carrinho
-      console.log('SALVANDO ITEM', {
-  userId: 'usuarioLogado.uid',
-  nome: nome.trim(),
-  precoUnitario: valorUnitario,
-  quantidade: qtd,
-  fotoUrl,
-  totalItem: totalItemCalculado,
-});
+// Executa a query de inserção (Insert) no banco local via Service
       await compraService.salvarItemLocal({
-  userId: usuarioLogado.uid,
-  nome: nome.trim(),
-  fotoUrl,
-  precoUnitario: valorUnitario,
-  quantidade: qtd,
-  totalItem: totalItemCalculado,
-});
+        userId: usuarioLogado.uid,
+        nome: nome.trim(),
+        fotoUrl,
+        precoUnitario: valorUnitario,
+        quantidade: qtd,
+        totalItem: totalItemCalculado,
+      });
 
-console.log('ITEM SALVO');
-
-      // Reseta o formulário e fecha o modal
       setNome('');
       setPreco('');
       setQuantidade('');
       setFotoUrl('');
       setModalVisivel(false);
 
-      await carregarItensDoBancoLocal(); // Atualiza a FlatList com o novo item adicionado
+      // Re-sincroniza a lista de produtos com o banco atualizado
+      await carregarItensDoBancoLocal();
       Alert.alert('Sucesso', 'Item adicionado à sua lista local!');
     } catch (error) {
-      console.error("Erro ao salvar no SQLite: ", error);
+      console.error('Erro ao salvar no SQLite: ', error);
       Alert.alert('Erro Local', 'Não foi possível gravar os dados.');
     } finally {
       setLoading(false);
+      salvandoRef.current = false;
     }
   };
 
+// Remove um produto específico da tabela baseado no ID numérico do SQLite
   const handleExcluirItem = (id: number | undefined) => {
     if (!id) return;
 
+    // Alerta de dupla confirmação antes de apagar permanentemente
     Alert.alert(
-      'Remover Item',
-      'Tem certeza que deseja tirar este produto da lista?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Sim, remover',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await compraService.excluirItemLocal(id);
-             await carregarItensDoBancoLocal(); // Atualiza o estado da lista após a remoção
-            } catch (error) {
-              Alert.alert('Erro', 'Não foi possível excluir the item.');
-            }
-          }
-        }
-      ]
+        'Remover Item',
+        'Tem certeza que deseja tirar este produto da lista?',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          {
+            text: 'Sim, remover',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                await compraService.excluirItemLocal(id);
+                await carregarItensDoBancoLocal();
+              } catch (error) {
+                Alert.alert('Erro', 'Não foi possível excluir o item.');
+              }
+            },
+          },
+        ]
     );
   };
 
@@ -156,28 +155,28 @@ console.log('ITEM SALVO');
     if (!usuarioLogado) return;
 
     Alert.alert(
-      'Limpar Lista',
-      'Deseja remover todos os itens da lista?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Limpar',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await compraService.limparListaUsuario(usuarioLogado.uid);
-             await carregarItensDoBancoLocal();
-              Alert.alert('Sucesso', 'Lista limpa com sucesso.');
-            } catch (error) {
-              Alert.alert('Erro', 'Não foi possível limpar a lista.');
-            }
+        'Limpar Lista',
+        'Deseja remover todos os itens da lista?',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          {
+            text: 'Limpar',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                await compraService.limparListaUsuario(usuarioLogado.uid);
+                await carregarItensDoBancoLocal();
+                Alert.alert('Sucesso', 'Lista limpa com sucesso.');
+              } catch (error) {
+                Alert.alert('Erro', 'Não foi possível limpar a lista.');
+              }
+            },
           },
-        },
-      ]
+        ]
     );
   };
 
-  // Incrementa ou decrementa a quantidade do item direto no card, recalculando o subtotal
+// Incrementa ou decrementa em 1 a quantidade diretamente a partir dos botões do card
   const handleAlterarQuantidade = async (item: ItemCompra, operacao: 'aumentar' | 'diminuir') => {
     if (!item.id) return;
 
@@ -185,233 +184,185 @@ console.log('ITEM SALVO');
     if (operacao === 'aumentar') novaQtd += 1;
     if (operacao === 'diminuir') novaQtd -= 1;
 
-    // Se o usuário diminuir para 0, aciona automaticamente o fluxo de exclusão do item
     if (novaQtd <= 0) {
       handleExcluirItem(item.id);
       return;
     }
 
     try {
-      // Dispara o update no banco passando o novo valor total recalculado
       await compraService.atualizarQuantidadeLocal(item.id, novaQtd, item.precoUnitario);
       await carregarItensDoBancoLocal();
     } catch (error) {
-      console.error("Erro ao atualizar quantidade:", error);
+      console.error('Erro ao atualizar quantidade:', error);
     }
   };
 
-const handleLogout = async () => {
-  try {
-    await signOut(auth);
-  } catch (error) {
-    Alert.alert('Erro', 'Não foi possível sair da conta.');
-  }
-};
-
-  // --- FECHAMENTO E MIGRAÇÃO PARA O HISTÓRICO ---
-  const handleFinalizarCompra = async () => {
-    const usuario = auth.currentUser;
-    if (!usuario) {
-      Alert.alert('Erro', 'Usuário não autenticado.');
-      return;
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+    } catch (error) {
+      Alert.alert('Erro', 'Não foi possível sair da conta.');
     }
+  };
 
+  // Navega para a conferência no caixa — o histórico é salvo apenas lá
+  const handleFinalizarCompra = () => {
     if (produtos.length === 0) {
       Alert.alert('Lista vazia', 'Adicione itens antes de finalizar.');
       return;
     }
-
-    try {
-      // 1. Cria o registro mestre/principal da compra no histórico (Gera o ID do cabeçalho)
-      const historicoId = await compraService.salvarHistoricoCompra({
-         userId: usuario.uid,
-        dataCompra: new Date().toLocaleDateString('pt-BR'),
-        totalCompra: valorTotalCompra,
-        quantidadeItens: produtos.length
-      });
-
-      // 2. Transfere em lote cada item do carrinho ativo para a tabela detalhada do histórico vinculada
-      for (const produto of produtos) {
-        await compraService.salvarItemHistorico({
-          historicoId,
-          nome: produto.nome,
-          precoUnitario: produto.precoUnitario,
-          quantidade: produto.quantidade,
-          totalItem: produto.totalItem
-        });
-      }
-
-      // 3. Limpa o carrinho ativo local do usuário para uma nova compra futura
-      await compraService.limparListaUsuario(usuario.uid);
-      await carregarItensDoBancoLocal();
-      Alert.alert('Compra Finalizada', 'A compra foi enviada para o histórico.');
-    } catch (error) {
-      console.error(error);
-      Alert.alert('Erro', 'Não foi possível finalizar a compra.');
-    }
+    navigation.navigate('Checkout', { itens: produtos });
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.headerDashboard}>
-        <Text style={styles.totalLabel}>Total no Carrinho</Text>
-        <Text style={styles.totalValue}>R$ {valorTotalCompra.toFixed(2)}</Text>
-      </View>
+      <SafeAreaView style={styles.container}>
+        <View style={styles.headerDashboard}>
+          <Text style={styles.totalLabel}>Total no Carrinho</Text>
+          <Text style={styles.totalValue}>R$ {valorTotalCompra.toFixed(2)}</Text>
+        </View>
 
-      <FlatList
-        data={produtos}
-        keyExtractor={(item) => String(item.id)}
-        contentContainerStyle={{ paddingHorizontal: 15, paddingBottom: 20 }}
-        renderItem={({ item }) => (
-          <View style={styles.cardItem}>
-            <Image source={{ uri: item.fotoUrl }} style={styles.cardImage} />
+        <FlatList
+            data={produtos}
+            keyExtractor={(item) => String(item.id)}
+            contentContainerStyle={{ paddingHorizontal: 15, paddingBottom: 20 }}
+            renderItem={({ item }) => (
+                <View style={styles.cardItem}>
+                  <Image source={{ uri: item.fotoUrl }} style={styles.cardImage} />
 
-            <View style={styles.cardContent}>
-              <Text style={styles.cardTitle} numberOfLines={1}>{item.nome}</Text>
-              <Text style={styles.precoUnitarioText}>R$ {item.precoUnitario.toFixed(2)} /un</Text>
+                  <View style={styles.cardContent}>
+                    <Text style={styles.cardTitle} numberOfLines={1}>{item.nome}</Text>
+                    <Text style={styles.precoUnitarioText}>R$ {item.precoUnitario.toFixed(2)} /un</Text>
 
-              <View style={styles.quantityContainer}>
-                <TouchableOpacity
-                  style={styles.qtyButton}
-                  onPress={() => handleAlterarQuantidade(item, 'diminuir')}
-                >
-                  <Text style={styles.qtyButtonText}>-</Text>
-                </TouchableOpacity>
+                    <View style={styles.quantityContainer}>
+                      <TouchableOpacity
+                          style={styles.qtyButton}
+                          onPress={() => handleAlterarQuantidade(item, 'diminuir')}
+                      >
+                        <Text style={styles.qtyButtonText}>-</Text>
+                      </TouchableOpacity>
 
-                <Text style={styles.cardSub}>{item.quantidade}</Text>
+                      <Text style={styles.cardSub}>{item.quantidade}</Text>
 
-                <TouchableOpacity
-                  style={styles.qtyButton}
-                  onPress={() => handleAlterarQuantidade(item, 'aumentar')}
-                >
-                  <Text style={styles.qtyButtonText}>+</Text>
-                </TouchableOpacity>
+                      <TouchableOpacity
+                          style={styles.qtyButton}
+                          onPress={() => handleAlterarQuantidade(item, 'aumentar')}
+                      >
+                        <Text style={styles.qtyButtonText}>+</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  <View style={styles.rightCardActions}>
+                    <TouchableOpacity
+                        style={styles.deleteButton}
+                        onPress={() => handleExcluirItem(item.id)}
+                    >
+                      <Text style={styles.deleteButtonText}>✕</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.cardTotalItem}>R$ {item.totalItem.toFixed(2)}</Text>
+                  </View>
+                </View>
+            )}
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyIcon}>🛒</Text>
+                <Text style={styles.emptyText}>Seu carrinho está vazio. Toque em fotografar para começar!</Text>
               </View>
-            </View>
+            }
+        />
 
-            <View style={styles.rightCardActions}>
-              <TouchableOpacity
-                style={styles.deleteButton}
-                onPress={() => handleExcluirItem(item.id)}
-              >
-                <Text style={styles.deleteButtonText}>✕</Text>
-              </TouchableOpacity>
-              <Text style={styles.cardTotalItem}>R$ {item.totalItem.toFixed(2)}</Text>
-            </View>
-          </View>
-        )}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>🛒</Text>
-            <Text style={styles.emptyText}>Seu carrinho está vazio. Toque em fotografar para começar!</Text>
-          </View>
-        }
-      />
-
-      <View style={styles.footerPanel}>
-        <TouchableOpacity
-          style={styles.floatingButton}
-          onPress={() => navigation.navigate('Camera')}
-        >
-          <Text style={styles.floatingButtonText}> Fotografar Produto</Text>
-        </TouchableOpacity>
-
-        <View style={styles.secondaryActionsRow}>
-          <TouchableOpacity style={[styles.inlineButton, styles.outlineButton]} onPress={handleLimparLista}>
-            <Text style={styles.outlineButtonText}> Limpar</Text>
+        <View style={styles.footerPanel}>
+          <TouchableOpacity
+              style={styles.floatingButton}
+              onPress={() => navigation.navigate('Camera')}
+          >
+            <Text style={styles.floatingButtonText}>📷 Fotografar Produto</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.inlineButton, styles.outlineButton]} onPress={() => navigation.navigate('History')}>
-            <Text style={styles.outlineButtonText}> Histórico</Text>
+          <View style={styles.secondaryActionsRow}>
+            <TouchableOpacity style={[styles.inlineButton, styles.outlineButton]} onPress={handleLimparLista}>
+              <Text style={styles.outlineButtonText}>🗑 Limpar</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={[styles.inlineButton, styles.outlineButton]} onPress={() => navigation.navigate('History')}>
+              <Text style={styles.outlineButtonText}>📜 Histórico</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Finalizar Compra navega para a conferência no caixa, que salva o histórico */}
+          <TouchableOpacity style={styles.finishButton} onPress={handleFinalizarCompra}>
+            <Text style={styles.finishButtonText}>🧾 Conferir e Finalizar Compra</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.logoutLink} onPress={handleLogout}>
+            <Text style={styles.logoutLinkText}>Sair da Conta</Text>
           </TouchableOpacity>
         </View>
-        {/* NOVO BOTÃO — inserir acima do botão "Finalizar Compra" existente */}
-        <TouchableOpacity
-            style={styles.checkoutButton}
-            onPress={() => {
-              if (produtos.length === 0) {
-                Alert.alert('Lista vazia', 'Adicione itens antes de conferir.');
-                return;
-              }
-              navigation.navigate('Checkout', { itens: produtos });
-            }}
-        >
-          <Text style={styles.checkoutButtonText}>🧾 Conferir no Caixa</Text>
-        </TouchableOpacity>
 
-        <TouchableOpacity style={styles.finishButton} onPress={handleFinalizarCompra}>
-          <Text style={styles.finishButtonText}>✓ Finalizar Compra</Text>
-        </TouchableOpacity>
+        <Modal visible={modalVisivel} animationType="slide" transparent>
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContainer}>
+                <Text style={styles.modalTitle}>📦 Detalhes do Produto</Text>
 
-        <TouchableOpacity style={styles.logoutLink} onPress={handleLogout}>
-          <Text style={styles.logoutLinkText}>Sair da Conta</Text>
-        </TouchableOpacity>
-      </View>
+                {fotoUrl ? (
+                    <Image source={{ uri: fotoUrl }} style={styles.modalImagePreview} />
+                ) : null}
 
-      <Modal visible={modalVisivel} animationType="slide" transparent>
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContainer}>
-              <Text style={styles.modalTitle}>📦 Detalhes do Produto</Text>
+                <View style={styles.formContainer}>
+                  <Text style={styles.inputLabel}>Nome do Produto</Text>
+                  <TextInput
+                      style={styles.input}
+                      placeholder="Ex: Garrafa Modus"
+                      placeholderTextColor="#adb5bd"
+                      value={nome}
+                      onChangeText={setNome}
+                      returnKeyType="done"
+                  />
 
-              {fotoUrl ? (
-                <Image source={{ uri: fotoUrl }} style={styles.modalImagePreview} />
-              ) : null}
+                  <Text style={styles.inputLabel}>Preço Unitário (Gôndola)</Text>
+                  <TextInput
+                      style={styles.input}
+                      placeholder="Ex: 54.90"
+                      placeholderTextColor="#adb5bd"
+                      value={preco}
+                      onChangeText={setPreco}
+                      keyboardType="numeric"
+                      returnKeyType="done"
+                  />
 
-              <View style={styles.formContainer}>
-                <Text style={styles.inputLabel}>Nome do Produto</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Ex: Garrafa Modus"
-                  placeholderTextColor="#adb5bd"
-                  value={nome}
-                  onChangeText={setNome}
-                  returnKeyType="done"
-                />
-
-                <Text style={styles.inputLabel}>Preço Unitário (Gôndola)</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Ex: 54.90"
-                  placeholderTextColor="#adb5bd"
-                  value={preco}
-                  onChangeText={setPreco}
-                  keyboardType="numeric"
-                  returnKeyType="done"
-                />
-
-                <Text style={styles.inputLabel}>Quantidade de Itens</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Ex: 2"
-                  placeholderTextColor="#adb5bd"
-                  value={quantidade}
-                  onChangeText={setQuantidade}
-                  keyboardType="number-pad"
-                  returnKeyType="done"
-                />
-              </View>
-
-              {loading ? (
-                <ActivityIndicator size="large" color="#10b981" />
-              ) : (
-                <View style={styles.modalActions}>
-                  <TouchableOpacity style={[styles.modalBtn, styles.btnSave]} onPress={handleSalvarItem}>
-                    <Text style={styles.btnText}>Adicionar</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.modalBtn, styles.btnCancel]}
-                    onPress={() => { setModalVisivel(false); setFotoUrl(''); }}
-                  >
-                    <Text style={styles.btnText}>Cancelar</Text>
-                  </TouchableOpacity>
+                  <Text style={styles.inputLabel}>Quantidade de Itens</Text>
+                  <TextInput
+                      style={styles.input}
+                      placeholder="Ex: 2"
+                      placeholderTextColor="#adb5bd"
+                      value={quantidade}
+                      onChangeText={setQuantidade}
+                      keyboardType="number-pad"
+                      returnKeyType="done"
+                  />
                 </View>
-              )}
+
+                {loading ? (
+                    <ActivityIndicator size="large" color="#10b981" />
+                ) : (
+                    <View style={styles.modalActions}>
+                      <TouchableOpacity style={[styles.modalBtn, styles.btnSave]} onPress={handleSalvarItem}>
+                        <Text style={styles.btnText}>Adicionar</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                          style={[styles.modalBtn, styles.btnCancel]}
+                          onPress={() => { setModalVisivel(false); setFotoUrl(''); }}
+                      >
+                        <Text style={styles.btnText}>Cancelar</Text>
+                      </TouchableOpacity>
+                    </View>
+                )}
+              </View>
             </View>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
-    </SafeAreaView>
+          </TouchableWithoutFeedback>
+        </Modal>
+      </SafeAreaView>
   );
 }
 
@@ -459,16 +410,4 @@ const styles = StyleSheet.create({
   btnSave: { backgroundColor: '#10b981' },
   btnCancel: { backgroundColor: '#64748b' },
   btnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
-  checkoutButton: {
-    backgroundColor: '#f59e0b',
-    padding: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  checkoutButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
-  },
 });

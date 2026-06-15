@@ -73,9 +73,37 @@ export default function CheckoutScreen() {
         };
     }, [itens]);
 
-    const handleConfirmar = async () => {
+    // Apenas exibe o resumo da conferência (não salva nada, pode ser chamado várias vezes)
+    const handleConferirCaixa = () => {
         if (!todosPreenchidos) {
-            Alert.alert('Campos incompletos', 'Preencha o valor cobrado no caixa para todos os produtos antes de confirmar.');
+            Alert.alert('Campos incompletos', 'Preencha o valor cobrado no caixa para todos os produtos antes de conferir.');
+            return;
+        }
+
+        const linhasResumo = itens.map((item) => {
+            const valorCaixa = parseFloat(item.valorCaixa);
+            const diffItem = valorCaixa - item.precoUnitario;
+            const status = diffItem > 0
+                ? `⚠️ +R$ ${diffItem.toFixed(2)}`
+                : diffItem < 0
+                    ? `✅ -R$ ${Math.abs(diffItem).toFixed(2)}`
+                    : '✅ OK';
+            return `• ${item.nome}: ${status}`;
+        });
+
+        const statusGeral = diferenca > 0
+            ? `⚠️ Você está sendo cobrado R$ ${diferenca.toFixed(2)} a mais!`
+            : diferenca < 0
+                ? `✅ Você está pagando R$ ${Math.abs(diferenca).toFixed(2)} a menos.`
+                : '✅ Todos os valores conferem!';
+
+        Alert.alert('Resumo da Conferência', `${linhasResumo.join('\n')}\n\n${statusGeral}`);
+    };
+
+    // Salva o histórico, salva os itens detalhados e limpa a lista do usuário
+    const handleFinalizarCompra = async () => {
+        if (!todosPreenchidos) {
+            Alert.alert('Campos incompletos', 'Preencha o valor cobrado no caixa para todos os produtos antes de finalizar.');
             return;
         }
 
@@ -106,29 +134,15 @@ export default function CheckoutScreen() {
                 });
             }
 
-            // Monta e exibe o resumo final
-            const linhasResumo = itens.map((item) => {
-                const valorCaixa = parseFloat(item.valorCaixa);
-                const diffItem = valorCaixa - item.precoUnitario;
-                const status = diffItem > 0
-                    ? `⚠️ +R$ ${diffItem.toFixed(2)}`
-                    : diffItem < 0
-                        ? `✅ -R$ ${Math.abs(diffItem).toFixed(2)}`
-                        : '✅ OK';
-                return `• ${item.nome}: ${status}`;
-            });
+            // Limpa a lista do usuário após salvar o histórico
+            await compraService.limparListaUsuario(usuario.uid);
 
-            const statusGeral = diferenca > 0
-                ? `⚠️ Você está sendo cobrado R$ ${diferenca.toFixed(2)} a mais!`
-                : diferenca < 0
-                    ? `✅ Você está pagando R$ ${Math.abs(diferenca).toFixed(2)} a menos.`
-                    : '✅ Todos os valores conferem!';
-
-            Alert.alert('Resumo da Conferência', `${linhasResumo.join('\n')}\n\n${statusGeral}`);
-
+            Alert.alert('Compra finalizada', 'Sua lista foi salva no histórico e a lista atual foi limpa.', [
+                { text: 'OK', onPress: () => navigation.goBack() },
+            ]);
         } catch (error) {
             console.error(error);
-            Alert.alert('Erro', 'Não foi possível salvar a conferência.');
+            Alert.alert('Erro', 'Não foi possível finalizar a compra.');
         }
     };
 
@@ -256,8 +270,14 @@ export default function CheckoutScreen() {
                         </View>
                     )}
 
-                    <TouchableOpacity style={styles.confirmBtn} onPress={handleConfirmar}>
-                        <Text style={styles.confirmBtnText}>✓ Ver Resumo Final</Text>
+                    {/* Botão Conferir Caixa: só mostra o resumo, não salva nada */}
+                    <TouchableOpacity style={styles.conferirBtn} onPress={handleConferirCaixa}>
+                        <Text style={styles.confirmBtnText}>🔍 Conferir Caixa</Text>
+                    </TouchableOpacity>
+
+                    {/* Botão Finalizar Compra: salva histórico e limpa a lista */}
+                    <TouchableOpacity style={styles.confirmBtn} onPress={handleFinalizarCompra}>
+                        <Text style={styles.confirmBtnText}>✓ Finalizar Compra</Text>
                     </TouchableOpacity>
                 </View>
 
@@ -312,6 +332,9 @@ const styles = StyleSheet.create({
     footerValor: { fontSize: 14, fontWeight: '600', color: '#1e293b' },
     footerValorErr: { color: '#dc2626' },
     footerValorOk: { color: '#0f766e' },
-    confirmBtn: { backgroundColor: '#3b82f6', borderRadius: 12, padding: 14, alignItems: 'center', marginTop: 10 },
+
+    // Botões
+    conferirBtn: { backgroundColor: '#3b82f6', borderRadius: 12, padding: 14, alignItems: 'center', marginTop: 10 },
+    confirmBtn: { backgroundColor: '#16a34a', borderRadius: 12, padding: 14, alignItems: 'center', marginTop: 8 },
     confirmBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
 });

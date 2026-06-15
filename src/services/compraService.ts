@@ -1,7 +1,7 @@
 
 import { getDatabase } from './database';
 import dbLocal from './database';
-
+import * as FileSystem from 'expo-file-system/legacy';
 export interface ItemCompra {
   id?: number;
   userId: string;
@@ -29,6 +29,21 @@ export interface HistoricoItem {
   totalItem: number;
 }
 
+
+export async function salvarImagemPersistente(uriTemporaria: string): Promise<string> {
+  // Gera um nome único baseado em timestamp para evitar colisões ou substituições de fotos antigas
+  const nomeArquivo = `produto_${Date.now()}.jpg`;
+  // Aponta para o diretório de documentos privados do aplicativo (não limpo pelo sistema operacional)
+  const destino = `${FileSystem.documentDirectory}${nomeArquivo}`;
+
+  // Move fisicamente o arquivo do cache temporário da câmera para a pasta permanente do App
+  await FileSystem.copyAsync({
+    from: uriTemporaria,
+    to: destino,
+  });
+
+  return destino; // Retorna o caminho absoluto final para ser gravado nas tabelas de texto do banco
+}
 export const compraService = {
 
   // --- GERENCIAMENTO DO CARRINHO ATIVO (TABELA: compras) ---

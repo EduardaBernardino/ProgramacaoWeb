@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Image, Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
+import * as FileSystem from 'expo-file-system';
 
 export default function CameraScreen({ navigation }: any) {
   // Estado para controlar o loading (indicador de carregamento) na tela
@@ -51,12 +52,12 @@ export default function CameraScreen({ navigation }: any) {
 
       // Manipula a imagem para otimizá-la antes de enviar ou salvar
       const imagemTratada = await ImageManipulator.manipulateAsync(
-        uriOriginal,
-        [{ resize: { width: 500 } }], // Redimensiona a largura para 500px (mantém a proporção da altura)
-        {
-          compress: 0.6, // Comprime a qualidade para 60% (reduz muito o peso do arquivo)
-          format: ImageManipulator.SaveFormat.JPEG, // Converte/garante o formato JPEG
-        }
+          uriOriginal,
+          [{ resize: { width: 500 } }],
+          {
+            compress: 0.6,
+            format: ImageManipulator.SaveFormat.JPEG,
+          }
       );
 
       // Salva o caminho da nova imagem otimizada no estado para visualização

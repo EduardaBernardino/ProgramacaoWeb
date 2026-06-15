@@ -13,12 +13,17 @@ import { compraService, HistoricoCompra } from '../../services/compraService';
 
 export default function HistoryScreen() {
   const navigation = useNavigation<any>();
+  // Define o estado local 'historico' tipado com a interface 'HistoricoCompra'
+// Começa como um array vazio antes de buscar os dados do banco
   const [historico, setHistorico] = useState<HistoricoCompra[]>([]);
 
   useEffect(() => {
+    // Recupera os metadados do usuário logado atualmente no Firebase Auth
     const usuario = auth.currentUser;
     if (usuario) {
+      // Busca os registros de compras antigas filtrados pelo UID único do usuário
       const dados = compraService.listarHistorico(usuario.uid);
+      // Atualiza o estado da aplicação com a lista de compras retornada do banco
       setHistorico(dados);
     }
   }, []);

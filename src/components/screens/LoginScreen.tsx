@@ -18,11 +18,13 @@ import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../../services/firebase';
 
 export default function LoginScreen() {
+  // Inicializa o objeto de navegação para permitir o redirecionamento (ex: ir para a tela de registro)
   const navigation = useNavigation<any>();
 
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
 
+  // Função assíncrona responsável por validar os campos locais e enviar a requisição ao Firebase
   const handleLogin = async () => {
     if (!email.trim() || !senha.trim()) {
       Alert.alert('Atenção', 'Preencha todos os campos.');
@@ -40,6 +42,7 @@ export default function LoginScreen() {
         error.code === 'auth/user-not-found'
       ) {
         Alert.alert('Erro', 'E-mail ou senha inválidos.');
+        // Identifica se a string enviada não possui a estrutura padrão de um e-mail (ex: falta o "@" ou ".com")
       } else if (error.code === 'auth/invalid-email') {
         Alert.alert('Erro', 'Formato de e-mail inválido.');
       } else {
