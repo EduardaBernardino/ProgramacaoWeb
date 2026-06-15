@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { View, ActivityIndicator } from 'react-native';
-import { inicializarBancoLocal } from './src/services/database'; 
-import Routes from './src/routes'; 
+import { inicializarBancoLocal } from './src/services/database';
+import Routes from './src/routes';
 
 export default function App() {
   // Criamos um "sinal de trânsito" para o banco de dados

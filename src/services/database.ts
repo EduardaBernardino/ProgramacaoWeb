@@ -1,7 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 
 // Abre ou cria o arquivo de banco de dados físico no armazenamento local do dispositivo
-const dbLocal = SQLite.openDatabaseSync('comprasApp.db');
+let dbLocal = SQLite.openDatabaseSync('comprasApp.db');
 
 // Substituímos o openDatabaseSync pelo openDatabaseAsync
 export async function getDatabase() {
@@ -10,7 +10,7 @@ export async function getDatabase() {
   }
   return dbLocal;
 }
-
+export default dbLocal;
 // Transformamos a função em assíncrona
 export async function inicializarBancoLocal() {
   try {
@@ -54,3 +54,4 @@ export async function inicializarBancoLocal() {
     console.error("Erro crítico ao criar tabela SQLite:", error);
   }
 }
+

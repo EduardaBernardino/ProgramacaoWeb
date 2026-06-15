@@ -18,13 +18,12 @@ export default function HistoryScreen() {
 
   // --- BUSCA DOS DADOS ---
   useEffect(() => {
-    const usuario = auth.currentUser;
-    if (usuario) {
-      // Obtém as compras filtradas pelo ID do usuário autenticado e salva no estado
-      const dados = compraService.listarHistorico(usuario.uid);
-      setHistorico(dados);
-    }
-  }, []);
+  const usuario = auth.currentUser;
+  if (usuario) {
+    const dados = compraService.listarHistorico('local_user');
+    setHistorico(dados);
+  }
+}, []);
 
   return (
     <SafeAreaView style={styles.container}>
