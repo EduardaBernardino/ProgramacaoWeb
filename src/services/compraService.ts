@@ -1,6 +1,6 @@
+
 import { getDatabase } from './database';
 import dbLocal from './database';
-
 
 export interface ItemCompra {
   id?: number;

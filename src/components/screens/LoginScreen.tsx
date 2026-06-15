@@ -5,8 +5,12 @@ import {
   StyleSheet,
   TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
+  KeyboardAvoidingView,
   Alert,
   Image,
+  Keyboard,
+  Platform,
 } from 'react-native';
 
 import { useNavigation } from '@react-navigation/native';
@@ -26,11 +30,7 @@ export default function LoginScreen() {
     }
 
     try {
-      await signInWithEmailAndPassword(
-  auth,
-  email.trim(),
-  senha
-);
+      await signInWithEmailAndPassword(auth, email.trim(), senha);
     } catch (error: any) {
       console.log(error.code);
 
@@ -43,53 +43,51 @@ export default function LoginScreen() {
       } else if (error.code === 'auth/invalid-email') {
         Alert.alert('Erro', 'Formato de e-mail inválido.');
       } else {
-        Alert.alert(
-          'Erro',
-          'Não foi possível conectar ao servidor.'
-        );
+        Alert.alert('Erro', 'Não foi possível conectar ao servidor.');
       }
     }
   };
 
   return (
-    <View style={styles.container}>
-      <Image
-        source={require('../../../assets/logo.png')}
-        style={styles.logo}
-        resizeMode="contain"
-      />
-
-      <TextInput
-        style={styles.input}
-        placeholder="E-mail"
-        value={email}
-        onChangeText={setEmail}
-        keyboardType="email-address"
-        autoCapitalize="none"
-      />
-
-      <TextInput
-        style={styles.input}
-        placeholder="Senha"
-        value={senha}
-        onChangeText={setSenha}
-        secureTextEntry
-      />
-
-      <TouchableOpacity
-        style={styles.button}
-        onPress={handleLogin}
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <Text style={styles.buttonText}>Entrar</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-  onPress={() => navigation.navigate('Register')}
->
-  <Text style={styles.linkText}>
-    Criar Conta
-  </Text>
-</TouchableOpacity>
-    </View>
+        <View style={styles.container}>
+          <Image
+            source={require('../../../assets/logo.png')}
+            style={styles.logo}
+            resizeMode="contain"
+          />
+
+          <TextInput
+            style={styles.input}
+            placeholder="E-mail"
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
+          />
+
+          <TextInput
+            style={styles.input}
+            placeholder="Senha"
+            value={senha}
+            onChangeText={setSenha}
+            secureTextEntry
+          />
+
+          <TouchableOpacity style={styles.button} onPress={handleLogin}>
+            <Text style={styles.buttonText}>Entrar</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={() => navigation.navigate('Register')}>
+            <Text style={styles.linkText}>Criar Conta</Text>
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
+    </TouchableWithoutFeedback>
   );
 }
 
@@ -101,13 +99,11 @@ const styles = StyleSheet.create({
     padding: 20,
     backgroundColor: '#fff',
   },
-
   logo: {
     width: 180,
     height: 180,
     marginBottom: 30,
   },
-
   input: {
     width: '100%',
     height: 50,
@@ -117,7 +113,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     marginBottom: 15,
   },
-
   button: {
     backgroundColor: '#007bff',
     width: '100%',
@@ -127,15 +122,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 10,
   },
-
   buttonText: {
     color: '#fff',
     fontSize: 18,
     fontWeight: 'bold',
   },
   linkText: {
-  marginTop: 20,
-  color: '#007bff',
-  fontSize: 16,
-},
+    marginTop: 20,
+    color: '#007bff',
+    fontSize: 16,
+  },
 });

@@ -17,10 +17,11 @@ export default function HistoryScreen() {
   const [historico, setHistorico] = useState<HistoricoCompra[]>([]);
 
   // --- BUSCA DOS DADOS ---
-  useEffect(() => {
+
+useEffect(() => {
   const usuario = auth.currentUser;
   if (usuario) {
-    const dados = compraService.listarHistorico('local_user');
+    const dados = compraService.listarHistorico(usuario.uid); // ← usa o ID real
     setHistorico(dados);
   }
 }, []);

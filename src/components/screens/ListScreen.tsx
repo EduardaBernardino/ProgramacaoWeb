@@ -16,8 +16,12 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { auth } from '../../services/firebase';
+
+
+
 import { compraService, ItemCompra } from '../../services/compraService';
 import { signOut } from 'firebase/auth';
+
 
 export default function ListScreen() {
   const navigation = useNavigation<any>();
@@ -34,12 +38,8 @@ export default function ListScreen() {
   // Busca os itens ativos salvos no banco local SQLite do dispositivo
 const carregarItensDoBancoLocal = async () => {
   const usuarioLogado = auth.currentUser;
-
   if (usuarioLogado) {
-    const dados = await compraService.listarItensPorUsuario('local_user');
-
-    console.log('DADOS CARREGADOS', dados);
-
+    const dados = await compraService.listarItensPorUsuario(usuarioLogado.uid);
     setProdutos(dados);
   }
 };
@@ -92,7 +92,7 @@ const carregarItensDoBancoLocal = async () => {
 
       // Grava o item estruturado na tabela temporária do carrinho
       console.log('SALVANDO ITEM', {
-  userId: 'local_user',
+  userId: 'usuarioLogado.uid',
   nome: nome.trim(),
   precoUnitario: valorUnitario,
   quantidade: qtd,
@@ -100,7 +100,7 @@ const carregarItensDoBancoLocal = async () => {
   totalItem: totalItemCalculado,
 });
       await compraService.salvarItemLocal({
-  userId: 'local_user',
+  userId: usuarioLogado.uid,
   nome: nome.trim(),
   fotoUrl,
   precoUnitario: valorUnitario,
@@ -165,7 +165,7 @@ console.log('ITEM SALVO');
           style: 'destructive',
           onPress: async () => {
             try {
-              await compraService.limparListaUsuario('local_user');
+              await compraService.limparListaUsuario(usuarioLogado.uid);
              await carregarItensDoBancoLocal();
               Alert.alert('Sucesso', 'Lista limpa com sucesso.');
             } catch (error) {
@@ -224,7 +224,7 @@ const handleLogout = async () => {
     try {
       // 1. Cria o registro mestre/principal da compra no histórico (Gera o ID do cabeçalho)
       const historicoId = await compraService.salvarHistoricoCompra({
-        userId: 'local_user',
+         userId: usuario.uid,
         dataCompra: new Date().toLocaleDateString('pt-BR'),
         totalCompra: valorTotalCompra,
         quantidadeItens: produtos.length
@@ -242,7 +242,7 @@ const handleLogout = async () => {
       }
 
       // 3. Limpa o carrinho ativo local do usuário para uma nova compra futura
-      await compraService.limparListaUsuario('local_user');
+      await compraService.limparListaUsuario(usuario.uid);
       await carregarItensDoBancoLocal();
       Alert.alert('Compra Finalizada', 'A compra foi enviada para o histórico.');
     } catch (error) {
