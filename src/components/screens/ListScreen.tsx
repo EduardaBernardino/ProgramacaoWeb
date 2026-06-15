@@ -16,8 +16,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { auth } from '../../services/firebase';
-import { signOut } from 'firebase/auth';
+
 import { compraService, ItemCompra } from '../../services/compraService';
+import { signOut } from 'firebase/auth';
 
 
 export default function ListScreen() {
@@ -33,17 +34,17 @@ export default function ListScreen() {
   const [loading, setLoading] = useState(false);
 
   // Busca os itens ativos salvos no banco local SQLite do dispositivo
-  const carregarItensDoBancoLocal = async () => {
-    const usuarioLogado = auth.currentUser;
-    if (usuarioLogado) {
-      const dados = await compraService.listarItensPorUsuario(usuarioLogado.uid);
-      setProdutos(dados);
-    } else {
-      Alert.alert('Sessão Expirada', 'Por favor, realize o login novamente.');
-      navigation.navigate('Login');
-    }
-  };
+const carregarItensDoBancoLocal = async () => {
+  const usuarioLogado = auth.currentUser;
 
+  if (usuarioLogado) {
+    const dados = await compraService.listarItensPorUsuario('local_user');
+
+    console.log('DADOS CARREGADOS', dados);
+
+    setProdutos(dados);
+  }
+};
   // Monitora se a tela recebeu uma foto vinda da tela de Câmera para abrir o formulário
   useEffect(() => {
     if (route.params?.fotoUrl) {
@@ -53,7 +54,7 @@ export default function ListScreen() {
   }, [route.params?.fotoUrl]);
 
   useEffect(() => {
-    carregarItensDoBancoLocal();
+     carregarItensDoBancoLocal();
   }, []);
 
   // Calcula em tempo real a soma acumulada de todos os itens do carrinho
@@ -91,14 +92,24 @@ export default function ListScreen() {
       const totalItemCalculado = valorUnitario * qtd;
 
       // Grava o item estruturado na tabela temporária do carrinho
+      console.log('SALVANDO ITEM', {
+  userId: 'local_user',
+  nome: nome.trim(),
+  precoUnitario: valorUnitario,
+  quantidade: qtd,
+  fotoUrl,
+  totalItem: totalItemCalculado,
+});
       await compraService.salvarItemLocal({
-      userId: usuarioLogado.uid,
-        nome: nome.trim(),
-        precoUnitario: valorUnitario,
-        quantidade: qtd,
-        fotoUrl: fotoUrl,
-        totalItem: totalItemCalculado,
-      });
+  userId: 'local_user',
+  nome: nome.trim(),
+  fotoUrl,
+  precoUnitario: valorUnitario,
+  quantidade: qtd,
+  totalItem: totalItemCalculado,
+});
+
+console.log('ITEM SALVO');
 
       // Reseta o formulário e fecha o modal
       setNome('');
@@ -107,7 +118,7 @@ export default function ListScreen() {
       setFotoUrl('');
       setModalVisivel(false);
 
-      carregarItensDoBancoLocal(); // Atualiza a FlatList com o novo item adicionado
+      await carregarItensDoBancoLocal(); // Atualiza a FlatList com o novo item adicionado
       Alert.alert('Sucesso', 'Item adicionado à sua lista local!');
     } catch (error) {
       console.error("Erro ao salvar no SQLite: ", error);
@@ -131,7 +142,7 @@ export default function ListScreen() {
           onPress: async () => {
             try {
               await compraService.excluirItemLocal(id);
-              carregarItensDoBancoLocal(); // Atualiza o estado da lista após a remoção
+             await carregarItensDoBancoLocal(); // Atualiza o estado da lista após a remoção
             } catch (error) {
               Alert.alert('Erro', 'Não foi possível excluir the item.');
             }
@@ -155,8 +166,8 @@ export default function ListScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await compraService.limparListaUsuario(usuarioLogado.uid);
-              carregarItensDoBancoLocal();
+              await compraService.limparListaUsuario('local_user');
+             await carregarItensDoBancoLocal();
               Alert.alert('Sucesso', 'Lista limpa com sucesso.');
             } catch (error) {
               Alert.alert('Erro', 'Não foi possível limpar a lista.');
@@ -184,7 +195,7 @@ export default function ListScreen() {
     try {
       // Dispara o update no banco passando o novo valor total recalculado
       await compraService.atualizarQuantidadeLocal(item.id, novaQtd, item.precoUnitario);
-      carregarItensDoBancoLocal();
+      await carregarItensDoBancoLocal();
     } catch (error) {
       console.error("Erro ao atualizar quantidade:", error);
     }
@@ -213,7 +224,7 @@ const handleLogout = async () => {
     try {
       // 1. Cria o registro mestre/principal da compra no histórico (Gera o ID do cabeçalho)
       const historicoId = await compraService.salvarHistoricoCompra({
-        userId: usuario.uid,
+        userId: 'local_user',
         dataCompra: new Date().toLocaleDateString('pt-BR'),
         totalCompra: valorTotalCompra,
         quantidadeItens: produtos.length
@@ -231,8 +242,8 @@ const handleLogout = async () => {
       }
 
       // 3. Limpa o carrinho ativo local do usuário para uma nova compra futura
-      await compraService.limparListaUsuario(usuario.uid);
-      carregarItensDoBancoLocal();
+      await compraService.limparListaUsuario('local_user');
+      await carregarItensDoBancoLocal();
       Alert.alert('Compra Finalizada', 'A compra foi enviada para o histórico.');
     } catch (error) {
       console.error(error);

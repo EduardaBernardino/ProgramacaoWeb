@@ -1,12 +1,12 @@
 import * as SQLite from 'expo-sqlite';
-
-// Banco único da aplicação
-export const dbLocal = SQLite.openDatabaseSync('comprasApp.db');
+// Abre ou cria o arquivo de banco de dados físico no armazenamento local do dispositivo
+let dbLocal = SQLite.openDatabaseSync('comprasApp.db');
 
 export async function getDatabase() {
   return dbLocal;
 }
-
+export default dbLocal;
+// Transformamos a função em assíncrona
 export async function inicializarBancoLocal() {
   try {
     dbLocal.execSync(`
@@ -45,3 +45,4 @@ export async function inicializarBancoLocal() {
     console.error('Erro ao inicializar SQLite:', error);
   }
 }
+

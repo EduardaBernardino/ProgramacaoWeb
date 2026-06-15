@@ -1,4 +1,6 @@
-import { dbLocal } from './database';
+
+import { getDatabase } from './database';
+import dbLocal from './database';
 
 export interface ItemCompra {
   id?: number;
@@ -33,36 +35,56 @@ export const compraService = {
 
   // Insere de forma síncrona um novo produto vinculado ao ID do usuário autenticado
   salvarItemLocal: (item: ItemCompra): Promise<void> => {
-    return new Promise((resolve, reject) => {
-      try {
-        dbLocal.runSync(
-          `INSERT INTO compras (userId, nome, fotoUrl, precoUnitario, quantidade, totalItem)
-           VALUES (?, ?, ?, ?, ?, ?);`,
-          [item.userId, item.nome, item.fotoUrl, item.precoUnitario, item.quantidade, item.totalItem]
-        );
-        resolve();
-      } catch (error) {
-        reject(error);
-      }
-    });
-  },
+  return new Promise((resolve, reject) => {
+    try {
+      console.log('INSERT SQLITE', item);
+
+      dbLocal.runSync(
+        `INSERT INTO compras (
+          userId,
+          nome,
+          fotoUrl,
+          precoUnitario,
+          quantidade,
+          totalItem
+        )
+        VALUES (?, ?, ?, ?, ?, ?);`,
+        [
+          item.userId,
+          item.nome,
+          item.fotoUrl,
+          item.precoUnitario,
+          item.quantidade,
+          item.totalItem
+        ]
+      );
+
+      console.log('INSERT OK');
+
+      resolve();
+    } catch (error) {
+      console.log('ERRO INSERT', error);
+      reject(error);
+    }
+  });
+},
 
   // Retorna em lote todos os itens do carrinho atual pertencentes estritamente ao usuário informado
-  listarItensPorUsuario: async (
-  userId: string
-): Promise<ItemCompra[]> => {
+
+ listarItensPorUsuario: async (userId: string): Promise<ItemCompra[]> => {
   try {
-    return dbLocal.getAllSync<ItemCompra>(
-      `
-      SELECT *
-      FROM compras
-      WHERE userId = ?
-      ORDER BY id DESC
-      `,
+    const db = await getDatabase();
+
+    const resultados = await db.getAllAsync<ItemCompra>(
+      'SELECT * FROM compras WHERE userId = ? ORDER BY id DESC',
       [userId]
     );
+
+    console.log('ITENS ENCONTRADOS', resultados);
+
+    return resultados;
   } catch (error) {
-    console.error(error);
+    console.error('Erro ao buscar itens no SQLite:', error);
     return [];
   }
 },

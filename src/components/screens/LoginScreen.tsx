@@ -5,12 +5,12 @@ import {
   StyleSheet,
   TextInput,
   TouchableOpacity,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
   TouchableWithoutFeedback,
+  KeyboardAvoidingView,
+  Alert,
+  Image,
   Keyboard,
-  Image
+  Platform,
 } from 'react-native';
 
 import { useNavigation } from '@react-navigation/native';
@@ -23,34 +23,29 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
 
-  const handleLogin = () => {
-    if (email.trim() === '' || senha === '') {
-      Alert.alert('Atenção', 'Por favor, preencha todos os campos.');
+  const handleLogin = async () => {
+    if (!email.trim() || !senha.trim()) {
+      Alert.alert('Atenção', 'Preencha todos os campos.');
       return;
     }
 
-    signInWithEmailAndPassword(auth, email.trim(), senha)
-      .then(() => {
-        // O onAuthStateChanged do Routes fará a navegação automaticamente
-      })
-      .catch(error => {
-        console.log(error.code);
+    try {
+      await signInWithEmailAndPassword(auth, email.trim(), senha);
+    } catch (error: any) {
+      console.log(error.code);
 
-        if (
-          error.code === 'auth/invalid-credential' ||
-          error.code === 'auth/wrong-password' ||
-          error.code === 'auth/user-not-found'
-        ) {
-          Alert.alert('Erro', 'E-mail ou senha inválidos.');
-        } else if (error.code === 'auth/invalid-email') {
-          Alert.alert('Erro', 'Formato de e-mail inválido.');
-        } else {
-          Alert.alert(
-            'Erro',
-            'Não foi possível conectar ao servidor. Tente novamente.'
-          );
-        }
-      });
+      if (
+        error.code === 'auth/invalid-credential' ||
+        error.code === 'auth/wrong-password' ||
+        error.code === 'auth/user-not-found'
+      ) {
+        Alert.alert('Erro', 'E-mail ou senha inválidos.');
+      } else if (error.code === 'auth/invalid-email') {
+        Alert.alert('Erro', 'Formato de e-mail inválido.');
+      } else {
+        Alert.alert('Erro', 'Não foi possível conectar ao servidor.');
+      }
+    }
   };
 
   return (
@@ -83,20 +78,12 @@ export default function LoginScreen() {
             secureTextEntry
           />
 
-          <TouchableOpacity
-            style={styles.button}
-            onPress={handleLogin}
-          >
+          <TouchableOpacity style={styles.button} onPress={handleLogin}>
             <Text style={styles.buttonText}>Entrar</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.linkButton}
-            onPress={() => navigation.navigate('Register')}
-          >
-            <Text style={styles.linkText}>
-              Não tem uma conta? Cadastre-se
-            </Text>
+          <TouchableOpacity onPress={() => navigation.navigate('Register')}>
+            <Text style={styles.linkText}>Criar Conta</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -110,15 +97,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
-    backgroundColor: '#fff'
+    backgroundColor: '#fff',
   },
-
   logo: {
     width: 180,
     height: 180,
-    marginBottom: 30
+    marginBottom: 30,
   },
-
   input: {
     width: '100%',
     height: 50,
@@ -126,9 +111,8 @@ const styles = StyleSheet.create({
     borderColor: '#ccc',
     borderRadius: 8,
     paddingHorizontal: 15,
-    marginBottom: 15
+    marginBottom: 15,
   },
-
   button: {
     backgroundColor: '#007bff',
     width: '100%',
@@ -136,23 +120,16 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 10
+    marginTop: 10,
   },
-
   buttonText: {
     color: '#fff',
     fontSize: 18,
-    fontWeight: 'bold'
+    fontWeight: 'bold',
   },
-
-  linkButton: {
-    marginTop: 20,
-    paddingVertical: 10
-  },
-
   linkText: {
+    marginTop: 20,
     color: '#007bff',
     fontSize: 16,
-    fontWeight: '600'
-  }
+  },
 });
