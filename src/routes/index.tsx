@@ -14,7 +14,8 @@ import ListScreen from '../components/screens/ListScreen';
 import CameraScreen from '../components/screens/CameraScreen';
 import HistoryScreen from '../components/screens/HistoryScreen';
 import HistoryChartScreen from '../components/screens/HistoryChartScreen';
-
+import { ItemCompra } from '../services/compraService';
+import CheckoutScreen from "../components/screens/CheckoutScreen";
 // Definição estrita das rotas para o TypeScript
 export type RootStackParamList = {
   Login: undefined;
@@ -23,8 +24,8 @@ export type RootStackParamList = {
   Camera: undefined;
   History: undefined;
   HistoryChart: undefined;
+  Checkout: { itens: ItemCompra[] };
 };
-
 // TIPADO: Passamos a lista de parâmetros para o criador do Stack
 const Stack = createStackNavigator<RootStackParamList>();
 
@@ -75,7 +76,10 @@ export default function Routes() {
               headerStyle: { backgroundColor: '#000' }
             }}
           />
-
+          <Stack.Screen
+              name="Checkout"
+              component={CheckoutScreen}
+          />
           <Stack.Screen
             name="History"
             component={HistoryScreen}

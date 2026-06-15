@@ -21,15 +21,14 @@ export async function inicializarBancoLocal() {
         quantidade INTEGER NOT NULL,
         totalItem REAL NOT NULL
       );
-
-      CREATE TABLE IF NOT EXISTS historico_compras (
+        CREATE TABLE IF NOT EXISTS historico_compras (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         userId TEXT NOT NULL,
         dataCompra TEXT NOT NULL,
         totalCompra REAL NOT NULL,
-        quantidadeItens INTEGER NOT NULL
+        quantidadeItens INTEGER NOT NULL,
+        divergencia REAL NOT NULL DEFAULT 0  -- ← ADICIONAR (valor cobrado a mais)
       );
-
       CREATE TABLE IF NOT EXISTS historico_itens (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         historicoId INTEGER NOT NULL,
@@ -40,9 +39,14 @@ export async function inicializarBancoLocal() {
       );
     `);
 
+    try {
+      dbLocal.execSync(`ALTER TABLE historico_compras ADD COLUMN divergencia REAL NOT NULL DEFAULT 0;`);
+    } catch (_) {
+      // Se a coluna já existe o ALTER TABLE lança erro — ignoramos silenciosamente
+    }
+
     console.log('SQLite inicializado com sucesso');
   } catch (error) {
     console.error('Erro ao inicializar SQLite:', error);
   }
 }
-

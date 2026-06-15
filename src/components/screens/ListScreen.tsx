@@ -325,6 +325,19 @@ const handleLogout = async () => {
             <Text style={styles.outlineButtonText}> Histórico</Text>
           </TouchableOpacity>
         </View>
+        {/* NOVO BOTÃO — inserir acima do botão "Finalizar Compra" existente */}
+        <TouchableOpacity
+            style={styles.checkoutButton}
+            onPress={() => {
+              if (produtos.length === 0) {
+                Alert.alert('Lista vazia', 'Adicione itens antes de conferir.');
+                return;
+              }
+              navigation.navigate('Checkout', { itens: produtos });
+            }}
+        >
+          <Text style={styles.checkoutButtonText}>🧾 Conferir no Caixa</Text>
+        </TouchableOpacity>
 
         <TouchableOpacity style={styles.finishButton} onPress={handleFinalizarCompra}>
           <Text style={styles.finishButtonText}>✓ Finalizar Compra</Text>
@@ -446,4 +459,16 @@ const styles = StyleSheet.create({
   btnSave: { backgroundColor: '#10b981' },
   btnCancel: { backgroundColor: '#64748b' },
   btnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  checkoutButton: {
+    backgroundColor: '#f59e0b',
+    padding: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  checkoutButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
 });

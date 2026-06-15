@@ -18,8 +18,8 @@ export interface HistoricoCompra {
   dataCompra: string;
   totalCompra: number;
   quantidadeItens: number;
+  divergencia: number; // ← ADICIONAR
 }
-
 export interface HistoricoItem {
   id?: number;
   historicoId: number;
@@ -33,7 +33,7 @@ export const compraService = {
 
   // --- GERENCIAMENTO DO CARRINHO ATIVO (TABELA: compras) ---
 
-  // Insere de forma síncrona um novo produto vinculado ao ID do usuário autenticado
+  // Insere de forma síncro'na um novo produto vinculado ao ID do usuário autenticado
   salvarItemLocal: (item: ItemCompra): Promise<void> => {
   return new Promise((resolve, reject) => {
     try {
@@ -142,21 +142,22 @@ export const compraService = {
     return new Promise((resolve, reject) => {
       try {
         const result = dbLocal.runSync(
-          `
-          INSERT INTO historico_compras (userId, dataCompra, totalCompra, quantidadeItens)
-          VALUES (?, ?, ?, ?)
-          `,
-          [historico.userId, historico.dataCompra, historico.totalCompra, historico.quantidadeItens]
+            `INSERT INTO historico_compras (userId, dataCompra, totalCompra, quantidadeItens, divergencia)
+             VALUES (?, ?, ?, ?, ?)`,
+            [
+              historico.userId,
+              historico.dataCompra,
+              historico.totalCompra,
+              historico.quantidadeItens,
+              historico.divergencia ?? 0, // ← ADICIONAR
+            ]
         );
-
-        // Retorna o ID gerado para que ele possa ser usado como chave estrangeira em 'historico_itens'
         resolve(Number(result.lastInsertRowId));
       } catch (error) {
         reject(error);
       }
     });
   },
-
   // Retorna todos os registros masters do histórico ordenados pelas compras mais recentes
   listarHistorico: (userId: string): HistoricoCompra[] => {
     try {
