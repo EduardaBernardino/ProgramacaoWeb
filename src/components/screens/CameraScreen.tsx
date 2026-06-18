@@ -1,160 +1,288 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Image, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ActivityIndicator,
+  Image,
+  Alert,
+  Platform,
+  ScrollView,
+} from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
-import * as FileSystem from 'expo-file-system';
 
 export default function CameraScreen({ navigation }: any) {
-  // Estado para controlar o loading (indicador de carregamento) na tela
   const [loading, setLoading] = useState(false);
-  // Estado para armazenar o caminho (URI) da imagem processada
   const [imageUri, setImageUri] = useState<string | null>(null);
+  const [imagemPronta, setImagemPronta] = useState(false);
 
-  // useEffect que roda uma vez assim que a tela é montada
-  // Dispara a abertura da câmera automaticamente para o usuário
   useEffect(() => {
-    tirarFoto();
+    if (Platform.OS === 'web') {
+      abrirArquivoWeb();
+    } else {
+      tirarFoto();
+    }
   }, []);
 
-  // Função assíncrona responsável por lidar com o fluxo da câmera
-  const tirarFoto = async () => {
-    // Solicita a permissão de uso da câmera para o usuário
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+  const confirmarImagem = () => {
+    if (!imageUri) return;
+    navigation.navigate('List', { fotoUrl: imageUri });
+  };
 
-    // Se o usuário recusar a permissão, exibe um alerta e volta para a tela anterior
+  // ─── FLUXO WEB ────────────────────────────────────────────────────────────
+  const abrirArquivoWeb = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.capture = 'environment';
+
+    input.onchange = async (e: any) => {
+      const file: File = e.target.files[0];
+      if (!file) {
+        navigation.goBack();
+        return;
+      }
+
+      try {
+        setLoading(true);
+        setImagemPronta(false);
+
+        const uriBase64 = await lerArquivoComoDataUrl(file);
+        const uriRedimensionada = await redimensionarImagemWeb(uriBase64, 500);
+
+        setImageUri(uriRedimensionada);
+        setImagemPronta(true);
+        setLoading(false);
+      } catch (error) {
+        console.error(error);
+        Alert.alert('Erro', 'Falha ao processar a imagem.');
+        setLoading(false);
+      }
+    };
+
+    input.oncancel = () => navigation.goBack();
+    input.click();
+  };
+
+  const lerArquivoComoDataUrl = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const redimensionarImagemWeb = (dataUrl: string, larguraAlvo: number): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = new window.Image();
+      img.onload = () => {
+        const proporcao = larguraAlvo / img.width;
+        const altura = img.height * proporcao;
+        const canvas = document.createElement('canvas');
+        canvas.width = larguraAlvo;
+        canvas.height = altura;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { reject(new Error('Canvas não disponível')); return; }
+        ctx.drawImage(img, 0, 0, larguraAlvo, altura);
+        resolve(canvas.toDataURL('image/jpeg', 0.6));
+      };
+      img.onerror = reject;
+      img.src = dataUrl;
+    });
+  };
+
+  // ─── FLUXO MOBILE ─────────────────────────────────────────────────────────
+  const tirarFoto = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert(
-        'Permissão necessária',
-        'Precisamos de acesso à câmera para fotografar o produto.'
-      );
+      Alert.alert('Permissão necessária', 'Precisamos de acesso à câmera para fotografar o produto.');
       navigation.goBack();
-      return; // Interrompe a execução da função
+      return;
     }
 
-    // Abre a câmera nativa do aparelho para o usuário tirar a foto
     const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ['images'], // Define que o foco são apenas imagens
-      quality: 1,            // Captura na qualidade máxima original
+      mediaTypes: ['images'],
+      quality: 1,
     });
 
-    // Se o usuário fechar a câmera sem tirar a foto, cancela o fluxo e volta de tela
     if (result.canceled) {
       navigation.goBack();
       return;
     }
 
-    // Recupera o caminho (URI) temporário da foto original recém-tirada
     const uriOriginal = result.assets[0].uri;
 
     try {
-      // Ativa a tela de loading para o usuário ver que a imagem está processando
       setLoading(true);
+      setImagemPronta(false);
 
-      // Manipula a imagem para otimizá-la antes de enviar ou salvar
       const imagemTratada = await ImageManipulator.manipulateAsync(
           uriOriginal,
           [{ resize: { width: 500 } }],
-          {
-            compress: 0.6,
-            format: ImageManipulator.SaveFormat.JPEG,
-          }
+          { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG }
       );
 
-      // Salva o caminho da nova imagem otimizada no estado para visualização
       setImageUri(imagemTratada.uri);
-
-      // Desativa o indicador de carregamento
       setLoading(false);
 
-      // Exibe um alerta de sucesso com um botão de ação
       Alert.alert(
-        'Sucesso!',
-        'Imagem capturada e processada com sucesso.',
-        [
-          {
-            text: 'Continuar Cadastro',
-            onPress: () => {
-              // Navega para a tela 'List', passando a URI da foto tratada como parâmetro
-              navigation.navigate('List', {
-                fotoUrl: imagemTratada.uri,
-              });
-            },
-          },
-        ]
+          'Sucesso!',
+          'Imagem capturada e processada com sucesso.',
+          [{ text: 'Continuar Cadastro', onPress: () => navigation.navigate('List', { fotoUrl: imagemTratada.uri }) }]
       );
     } catch (error) {
-      // Trata possíveis erros no processo de manipulação do arquivo
       console.error(error);
-      Alert.alert(
-        'Erro',
-        'Falha ao processar a imagem.'
-      );
-      setLoading(false); // Garante que o loading feche mesmo em caso de erro
+      Alert.alert('Erro', 'Falha ao processar a imagem.');
+      setLoading(false);
     }
   };
 
-  return (
-    <View style={styles.container}>
-      {/* Se houver uma imagem processada no estado, exibe ela preenchendo a tela */}
-      {imageUri && <Image source={{ uri: imageUri }} style={styles.preview} />}
+  // ─── WEB: layout com preview redimensionado ───────────────────────────────
+  if (Platform.OS === 'web') {
+    return (
+        <View style={styles.containerWeb}>
+          <View style={styles.previewBoxWeb}>
+            {loading && (
+                <View style={styles.loadingOverlay}>
+                  <ActivityIndicator size="large" color="#007bff" />
+                  <Text style={styles.loadingText}>Otimizando e tratando imagem...</Text>
+                </View>
+            )}
 
-      {/* Se estiver em estado de loading, exibe o overlay escuro com o spinner */}
-      {loading && (
-        <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color="#007bff" />
-          <Text style={styles.loadingText}>Otimizando e tratando imagem...</Text>
+            {/* Imagem com tamanho controlado — não ocupa a tela toda */}
+            {imageUri && !loading && (
+                <Image
+                    source={{ uri: imageUri }}
+                    style={styles.previewWeb}
+                    resizeMode="contain"
+                />
+            )}
+
+            {!imageUri && !loading && (
+                <Text style={styles.placeholderText}>Nenhuma imagem selecionada</Text>
+            )}
+          </View>
+
+          <View style={styles.botoesContainer}>
+            {imagemPronta && (
+                <TouchableOpacity style={styles.buttonConfirmar} onPress={confirmarImagem}>
+                  <Text style={styles.buttonText}>✅ Continuar Cadastro</Text>
+                </TouchableOpacity>
+            )}
+            {!loading && (
+                <TouchableOpacity style={styles.button} onPress={abrirArquivoWeb}>
+                  <Text style={styles.buttonText}>📁 Selecionar Outra Imagem</Text>
+                </TouchableOpacity>
+            )}
+          </View>
         </View>
-      )}
+    );
+  }
 
-      {/* Se NÃO estiver carregando, exibe o botão para o usuário tentar tirar outra foto */}
-      {!loading && (
-        <TouchableOpacity style={styles.button} onPress={tirarFoto}>
-          <Text style={styles.buttonText}>Tirar Outra Foto</Text>
-        </TouchableOpacity>
-      )}
-    </View>
+  // ─── MOBILE: layout original com imagem em fullscreen ─────────────────────
+  return (
+      <View style={styles.container}>
+        {imageUri && <Image source={{ uri: imageUri }} style={styles.preview} />}
+
+        {loading && (
+            <View style={styles.loadingOverlay}>
+              <ActivityIndicator size="large" color="#007bff" />
+              <Text style={styles.loadingText}>Otimizando e tratando imagem...</Text>
+            </View>
+        )}
+
+        {!loading && (
+            <View style={styles.botoesContainer}>
+              <TouchableOpacity style={styles.button} onPress={tirarFoto}>
+                <Text style={styles.buttonText}>📷 Tirar Outra Foto</Text>
+              </TouchableOpacity>
+            </View>
+        )}
+      </View>
   );
 }
 
-// Estilizações da tela utilizando StyleSheet
 const styles = StyleSheet.create({
+  // ── Mobile ──
   container: {
     flex: 1,
     backgroundColor: '#000',
     justifyContent: 'center',
-    alignItems: 'center'
+    alignItems: 'center',
   },
   preview: {
     width: '100%',
     height: '100%',
-    position: 'absolute' // Faz a imagem ficar de fundo
+    position: 'absolute',
   },
+
+  // ── Web ──
+  containerWeb: {
+    flex: 1,
+    backgroundColor: '#f4f6f9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  previewBoxWeb: {
+    width: '100%',
+    maxWidth: 500,
+    height: 380,
+    backgroundColor: '#1a1a1a',
+    borderRadius: 16,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  previewWeb: {
+    width: 500,
+    height: 380,
+  },
+  placeholderText: {
+    color: '#666',
+    fontSize: 15,
+  },
+
+  // ── Compartilhados ──
   loadingOverlay: {
-    backgroundColor: 'rgba(0,0,0,0.8)', // Fundo preto com 80% de opacidade
+    backgroundColor: 'rgba(0,0,0,0.8)',
     padding: 20,
     borderRadius: 10,
     alignItems: 'center',
-    width: '80%'
+    width: '80%',
   },
   loadingText: {
     color: '#fff',
     marginTop: 15,
     textAlign: 'center',
-    fontSize: 16
+    fontSize: 16,
+  },
+  botoesContainer: {
+    width: '100%',
+    maxWidth: 500,
+    gap: 10,
+  },
+  buttonConfirmar: {
+    backgroundColor: '#28a745',
+    padding: 15,
+    borderRadius: 8,
+    width: '100%',
+    alignItems: 'center',
   },
   button: {
-    position: 'absolute',
-    bottom: 40, // Posiciona o botão fixo na parte inferior da tela
     backgroundColor: '#007bff',
     padding: 15,
     borderRadius: 8,
-    width: '80%',
+    width: '100%',
     alignItems: 'center',
-    zIndex: 10 // Garante que o botão fique acima da imagem de preview
   },
   buttonText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: 'bold'
-  }
+    fontWeight: 'bold',
+  },
 });

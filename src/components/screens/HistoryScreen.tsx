@@ -13,18 +13,15 @@ import { compraService, HistoricoCompra } from '../../services/compraService';
 
 export default function HistoryScreen() {
   const navigation = useNavigation<any>();
-  // Define o estado local 'historico' tipado com a interface 'HistoricoCompra'
-// Começa como um array vazio antes de buscar os dados do banco
   const [historico, setHistorico] = useState<HistoricoCompra[]>([]);
 
   useEffect(() => {
-    // Recupera os metadados do usuário logado atualmente no Firebase Auth
     const usuario = auth.currentUser;
     if (usuario) {
-      // Busca os registros de compras antigas filtrados pelo UID único do usuário
-      const dados = compraService.listarHistorico(usuario.uid);
-      // Atualiza o estado da aplicação com a lista de compras retornada do banco
-      setHistorico(dados);
+      // CORRIGIDO: usa listarHistoricoAsync (compatível com web e mobile)
+      compraService.listarHistoricoAsync(usuario.uid).then(dados => {
+        setHistorico(dados);
+      });
     }
   }, []);
 
@@ -34,9 +31,7 @@ export default function HistoryScreen() {
           <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
             <Text style={styles.backButtonText}>← Voltar</Text>
           </TouchableOpacity>
-
           <Text style={styles.title}>Histórico</Text>
-
           <TouchableOpacity
               style={styles.chartButton}
               onPress={() => navigation.navigate('HistoryChart')}
@@ -51,7 +46,6 @@ export default function HistoryScreen() {
             contentContainerStyle={{ paddingHorizontal: 15, paddingBottom: 20 }}
             renderItem={({ item }) => (
                 <View style={styles.card}>
-                  {/* Cabeçalho: data e quantidade de produtos */}
                   <View style={styles.cardHeader}>
                     <View style={styles.dateBadge}>
                       <Text style={styles.dateText}>📅 {item.dataCompra}</Text>
@@ -63,7 +57,6 @@ export default function HistoryScreen() {
 
                   <View style={styles.divider} />
 
-                  {/* Badge de divergência — linha própria, visível acima do total */}
                   {item.divergencia > 0 && (
                       <View style={styles.divergenciaBadge}>
                         <Text style={styles.divergenciaText}>
@@ -72,7 +65,6 @@ export default function HistoryScreen() {
                       </View>
                   )}
 
-                  {/* Total da compra — sempre na última linha do card */}
                   <View style={styles.cardFooter}>
                     <Text style={styles.totalLabel}>Total da Compra</Text>
                     <Text style={styles.totalValue}>R$ {item.totalCompra.toFixed(2)}</Text>

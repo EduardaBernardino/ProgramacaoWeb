@@ -1,99 +1,118 @@
-import React, { useState } from 'react';
-import { StyleSheet, Text, TextInput, TouchableOpacity, View, Alert, Image } from 'react-native';
-import { createUserWithEmailAndPassword, signOut } from 'firebase/auth';
+import React, { useState, useRef } from 'react';
+import {
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+    Alert,
+    Image,
+    Platform,
+} from 'react-native';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../../services/firebase';
 
 export default function RegisterScreen({ navigation }: any) {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
 
-  // --- LÓGICA DE CADASTRO ---
-  const handleRegister = async () => {
-    // 1. Validação de consistência básica (Campos vazios)
-    if (!email || !password || !confirmPassword) {
-      Alert.alert('Erro', 'Preencha todos os campos.');
-      return;
-    }
+    // Guard para evitar duplo clique no botão Cadastrar
+    const registrandoRef = useRef(false);
 
-    // 2. Validação local de igualdade de senhas para evitar requisição inútil à rede
-    if (password !== confirmPassword) {
-      Alert.alert('Erro', 'As senhas não coincidem.');
-      return;
-    }
+    const handleRegister = async () => {
+        if (registrandoRef.current) return;
+        registrandoRef.current = true;
 
-    // 3. Validação de tamanho mínimo exigido nativamente pela política padrão do Firebase Auth
-    if (password.length < 6) {
-      Alert.alert('Erro', 'A senha deve ter pelo menos 6 caracteres.');
-      return;
-    }
+        try {
+            // 1. Validação de campos vazios
+            if (!email || !password || !confirmPassword) {
+                Alert.alert('Erro', 'Preencha todos os campos.');
+                return;
+            }
 
-    try {
-      // Dispara a criação da conta. Ao retornar com sucesso, o usuário é logado automaticamente.
-      // O listener global da aplicação captura a mudança de estado e reconstrói o fluxo de rotas.
-      await createUserWithEmailAndPassword(auth, email, password);
+            // 2. Validação de igualdade de senhas
+            if (password !== confirmPassword) {
+                Alert.alert('Erro', 'As senhas não coincidem.');
+                return;
+            }
 
-      // Log para controle de debug; evita-se disparar Alerts de sucesso que concorram
-      // visualmente com a desmontagem imediata da tela gerenciada pelo navegador.
-      console.log('Usuário cadastrado e logado automaticamente pelo Firebase.');
+            // 3. Tamanho mínimo exigido pelo Firebase Auth
+            if (password.length < 6) {
+                Alert.alert('Erro', 'A senha deve ter pelo menos 6 caracteres.');
+                return;
+            }
 
-    } catch (error: any) {
-      console.error(error);
-      // Fallback genérico para cobrir e-mails duplicados, formatos inválidos ou quedas de conexão
-      Alert.alert('Erro no cadastro', 'Verifique o e-mail ou tente outra senha.');
-    }
-  };
+            await createUserWithEmailAndPassword(auth, email, password);
+            // Firebase loga automaticamente após criação —
+            // o onAuthStateChanged em Routes detecta e troca para a stack autenticada
+            console.log('Usuário cadastrado e logado automaticamente pelo Firebase.');
 
-  return (
-    <View style={styles.container}>
-      <Image
-        source={require('../../../assets/logo.png')}
-        style={styles.logo}
-        resizeMode="contain"
-      />
+        } catch (error: any) {
+            console.error(error);
+            if (error.code === 'auth/email-already-in-use') {
+                Alert.alert('Erro no cadastro', 'Este e-mail já está cadastrado. Tente fazer login.');
+            } else if (error.code === 'auth/invalid-email') {
+                Alert.alert('Erro no cadastro', 'Formato de e-mail inválido.');
+            } else if (error.code === 'auth/weak-password') {
+                Alert.alert('Erro no cadastro', 'A senha é muito fraca.');
+            } else {
+                Alert.alert('Erro no cadastro', 'Não foi possível criar a conta. Tente novamente.');
+            }
+        } finally {
+            registrandoRef.current = false;
+        }
+    };
 
-      <TextInput
-        style={styles.input}
-        placeholder="E-mail"
-        value={email}
-        onChangeText={setEmail}
-        keyboardType="email-address"
-        autoCapitalize="none"
-      />
+    return (
+        <View style={styles.container}>
+            <Image
+                source={require('../../../assets/logo.png')}
+                style={styles.logo}
+                resizeMode="contain"
+            />
 
-      <TextInput
-        style={styles.input}
-        placeholder="Senha (mínimo 6 caracteres)"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-      />
+            <TextInput
+                style={styles.input}
+                placeholder="E-mail"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+            />
 
-      <TextInput
-        style={styles.input}
-        placeholder="Confirme a Senha"
-        value={confirmPassword}
-        onChangeText={setConfirmPassword}
-        secureTextEntry
-      />
+            <TextInput
+                style={styles.input}
+                placeholder="Senha (mínimo 6 caracteres)"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+            />
 
-      <TouchableOpacity style={styles.button} onPress={handleRegister}>
-        <Text style={styles.buttonText}>Cadastrar</Text>
-      </TouchableOpacity>
+            <TextInput
+                style={styles.input}
+                placeholder="Confirme a Senha"
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                secureTextEntry
+            />
 
-      {/* Retorna para a tela de login utilizando a pilha existente, preservando o histórico */}
-      <TouchableOpacity onPress={() => navigation.goBack()}>
-        <Text style={styles.linkText}>Já tem uma conta? Voltar para o Login</Text>
-      </TouchableOpacity>
-    </View>
-  );
+            <TouchableOpacity style={styles.button} onPress={handleRegister}>
+                <Text style={styles.buttonText}>Cadastrar</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={() => navigation.goBack()}>
+                <Text style={styles.linkText}>Já tem uma conta? Voltar para o Login</Text>
+            </TouchableOpacity>
+        </View>
+    );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', padding: 20, backgroundColor: '#fff', alignItems: 'center' },
-  input: { width: '100%', borderWidth: 1, borderColor: '#ccc', padding: 12, borderRadius: 8, marginBottom: 15, fontSize: 16 },
-  button: { backgroundColor: '#28a745', padding: 15, borderRadius: 8, alignItems: 'center', marginTop: 10, width: '100%' },
-  buttonText: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
-  linkText: { color: '#007bff', marginTop: 20, textAlign: 'center', fontSize: 16 },
-  logo: { width: 140, height: 140, marginBottom: 20 }
+    container: { flex: 1, justifyContent: 'center', padding: 20, backgroundColor: '#fff', alignItems: 'center' },
+    logo: { width: 140, height: 140, marginBottom: 20 },
+    input: { width: '100%', borderWidth: 1, borderColor: '#ccc', padding: 12, borderRadius: 8, marginBottom: 15, fontSize: 16 },
+    button: { backgroundColor: '#28a745', padding: 15, borderRadius: 8, alignItems: 'center', marginTop: 10, width: '100%' },
+    buttonText: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
+    linkText: { color: '#007bff', marginTop: 20, textAlign: 'center', fontSize: 16 },
 });

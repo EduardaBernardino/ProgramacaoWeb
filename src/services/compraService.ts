@@ -1,7 +1,6 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { KEYS } from './database';
 
-import { getDatabase } from './database';
-import dbLocal from './database';
-import * as FileSystem from 'expo-file-system/legacy';
 export interface ItemCompra {
   id?: number;
   userId: string;
@@ -18,8 +17,9 @@ export interface HistoricoCompra {
   dataCompra: string;
   totalCompra: number;
   quantidadeItens: number;
-  divergencia: number; // ← ADICIONAR
+  divergencia: number;
 }
+
 export interface HistoricoItem {
   id?: number;
   historicoId: number;
@@ -29,198 +29,108 @@ export interface HistoricoItem {
   totalItem: number;
 }
 
+const gerarId = (): number => Date.now() + Math.floor(Math.random() * 1000);
 
-export async function salvarImagemPersistente(uriTemporaria: string): Promise<string> {
-  // Gera um nome único baseado em timestamp para evitar colisões ou substituições de fotos antigas
-  const nomeArquivo = `produto_${Date.now()}.jpg`;
-  // Aponta para o diretório de documentos privados do aplicativo (não limpo pelo sistema operacional)
-  const destino = `${FileSystem.documentDirectory}${nomeArquivo}`;
-
-  // Move fisicamente o arquivo do cache temporário da câmera para a pasta permanente do App
-  await FileSystem.copyAsync({
-    from: uriTemporaria,
-    to: destino,
-  });
-
-  return destino; // Retorna o caminho absoluto final para ser gravado nas tabelas de texto do banco
-}
 export const compraService = {
 
-  // --- GERENCIAMENTO DO CARRINHO ATIVO (TABELA: compras) ---
+  // --- CARRINHO ATIVO ---
 
-  // Insere de forma síncro'na um novo produto vinculado ao ID do usuário autenticado
-  salvarItemLocal: (item: ItemCompra): Promise<void> => {
-  return new Promise((resolve, reject) => {
+  salvarItemLocal: async (item: ItemCompra): Promise<void> => {
+    const key = KEYS.compras(item.userId);
+    const raw = await AsyncStorage.getItem(key);
+    const lista: ItemCompra[] = raw ? JSON.parse(raw) : [];
+    lista.push({ ...item, id: gerarId() });
+    await AsyncStorage.setItem(key, JSON.stringify(lista));
+  },
+
+  listarItensPorUsuario: async (userId: string): Promise<ItemCompra[]> => {
     try {
-      console.log('INSERT SQLITE', item);
-
-      dbLocal.runSync(
-        `INSERT INTO compras (
-          userId,
-          nome,
-          fotoUrl,
-          precoUnitario,
-          quantidade,
-          totalItem
-        )
-        VALUES (?, ?, ?, ?, ?, ?);`,
-        [
-          item.userId,
-          item.nome,
-          item.fotoUrl,
-          item.precoUnitario,
-          item.quantidade,
-          item.totalItem
-        ]
-      );
-
-      console.log('INSERT OK');
-
-      resolve();
+      const key = KEYS.compras(userId);
+      const raw = await AsyncStorage.getItem(key);
+      return raw ? JSON.parse(raw) : [];
     } catch (error) {
-      console.log('ERRO INSERT', error);
-      reject(error);
+      console.error('Erro ao listar itens:', error);
+      return [];
     }
-  });
-},
+  },
 
-  // Retorna em lote todos os itens do carrinho atual pertencentes estritamente ao usuário informado
+  // CORRIGIDO: recebe userId diretamente para buscar na chave certa
+  excluirItemLocal: async (id: number, userId: string): Promise<void> => {
+    const key = KEYS.compras(userId);
+    const raw = await AsyncStorage.getItem(key);
+    if (!raw) return;
+    const lista: ItemCompra[] = JSON.parse(raw);
+    const nova = lista.filter(item => item.id !== id);
+    await AsyncStorage.setItem(key, JSON.stringify(nova));
+  },
 
- listarItensPorUsuario: async (userId: string): Promise<ItemCompra[]> => {
-  try {
-    const db = await getDatabase();
-
-    const resultados = await db.getAllAsync<ItemCompra>(
-      'SELECT * FROM compras WHERE userId = ? ORDER BY id DESC',
-      [userId]
+  // CORRIGIDO: recebe userId diretamente
+  atualizarQuantidadeLocal: async (
+      id: number,
+      novaQtd: number,
+      precoUnitario: number,
+      userId: string
+  ): Promise<void> => {
+    const key = KEYS.compras(userId);
+    const raw = await AsyncStorage.getItem(key);
+    if (!raw) return;
+    const lista: ItemCompra[] = JSON.parse(raw);
+    const nova = lista.map(item =>
+        item.id === id
+            ? { ...item, quantidade: novaQtd, totalItem: novaQtd * precoUnitario }
+            : item
     );
-
-    console.log('ITENS ENCONTRADOS', resultados);
-
-    return resultados;
-  } catch (error) {
-    console.error('Erro ao buscar itens no SQLite:', error);
-    return [];
-  }
-},
-
-
-  // Remove um item específico da tabela compras usando sua chave primária (id)
-  excluirItemLocal: (id: number): Promise<void> => {
-    return new Promise((resolve, reject) => {
-      try {
-        dbLocal.runSync('DELETE FROM compras WHERE id = ?;', [id]);
-        resolve();
-      } catch (error) {
-        reject(error);
-      }
-    });
+    await AsyncStorage.setItem(key, JSON.stringify(nova));
   },
 
-  // Altera os valores de quantidade e recalcula o preço total do item no banco
-  atualizarQuantidadeLocal: (id: number, novaQtd: number, precoUnitario: number): Promise<void> => {
-    return new Promise((resolve, reject) => {
-      try {
-        const novoTotalItem = novaQtd * precoUnitario;
-
-        dbLocal.runSync(
-          'UPDATE compras SET quantidade = ?, totalItem = ? WHERE id = ?;',
-          [novaQtd, novoTotalItem, id]
-        );
-
-        resolve();
-      } catch (error) {
-        reject(error);
-      }
-    });
+  limparListaUsuario: async (userId: string): Promise<void> => {
+    await AsyncStorage.removeItem(KEYS.compras(userId));
   },
 
-  // Limpa o carrinho ativo limpando todas as linhas que correspondam ao userId do usuário logado
-  limparListaUsuario: (userId: string): Promise<void> => {
-    return new Promise((resolve, reject) => {
-      try {
-        dbLocal.runSync(
-          'DELETE FROM compras WHERE userId = ?;',
-          [userId]
-        );
-        resolve();
-      } catch (error) {
-        reject(error);
-      }
-    });
+  // --- HISTÓRICO ---
+
+  salvarHistoricoCompra: async (historico: HistoricoCompra): Promise<number> => {
+    const key = KEYS.historico(historico.userId);
+    const raw = await AsyncStorage.getItem(key);
+    const lista: HistoricoCompra[] = raw ? JSON.parse(raw) : [];
+    const id = gerarId();
+    lista.push({ ...historico, id });
+    await AsyncStorage.setItem(key, JSON.stringify(lista));
+    return id;
   },
 
-  // --- GERENCIAMENTO DO HISTÓRICO (TABELAS: historico_compras e historico_itens) ---
-
-  // Salva o cabeçalho mestre da compra concluída e retorna o ID autogerado (lastInsertRowId)
-  salvarHistoricoCompra: (historico: HistoricoCompra): Promise<number> => {
-    return new Promise((resolve, reject) => {
-      try {
-        const result = dbLocal.runSync(
-            `INSERT INTO historico_compras (userId, dataCompra, totalCompra, quantidadeItens, divergencia)
-             VALUES (?, ?, ?, ?, ?)`,
-            [
-              historico.userId,
-              historico.dataCompra,
-              historico.totalCompra,
-              historico.quantidadeItens,
-              historico.divergencia ?? 0, // ← ADICIONAR
-            ]
-        );
-        resolve(Number(result.lastInsertRowId));
-      } catch (error) {
-        reject(error);
-      }
-    });
+  listarHistoricoAsync: async (userId: string): Promise<HistoricoCompra[]> => {
+    try {
+      const key = KEYS.historico(userId);
+      const raw = await AsyncStorage.getItem(key);
+      return raw ? JSON.parse(raw) : [];
+    } catch (error) {
+      console.error('Erro ao listar histórico:', error);
+      return [];
+    }
   },
-  // Retorna todos os registros masters do histórico ordenados pelas compras mais recentes
+
   listarHistorico: (userId: string): HistoricoCompra[] => {
+    console.warn('Use listarHistoricoAsync()');
+    return [];
+  },
+
+  salvarItemHistorico: async (item: HistoricoItem): Promise<void> => {
+    const key = KEYS.historicoItens(item.historicoId);
+    const raw = await AsyncStorage.getItem(key);
+    const lista: HistoricoItem[] = raw ? JSON.parse(raw) : [];
+    lista.push({ ...item, id: gerarId() });
+    await AsyncStorage.setItem(key, JSON.stringify(lista));
+  },
+
+  listarItensHistorico: async (historicoId: number): Promise<HistoricoItem[]> => {
     try {
-      return dbLocal.getAllSync<HistoricoCompra>(
-        `
-        SELECT * FROM historico_compras
-        WHERE userId = ?
-        ORDER BY id DESC
-        `,
-        [userId]
-      );
+      const key = KEYS.historicoItens(historicoId);
+      const raw = await AsyncStorage.getItem(key);
+      return raw ? JSON.parse(raw) : [];
     } catch (error) {
-      console.error(error);
+      console.error('Erro ao listar itens do histórico:', error);
       return [];
     }
   },
-
-  // Salva os itens individuais da compra utilizando o ID do histórico obtido previamente (Chave Estrangeira)
-  salvarItemHistorico: (item: HistoricoItem): Promise<void> => {
-    return new Promise((resolve, reject) => {
-      try {
-        dbLocal.runSync(
-          `
-          INSERT INTO historico_itens (historicoId, nome, precoUnitario, quantidade, totalItem)
-          VALUES (?, ?, ?, ?, ?)
-          `,
-          [item.historicoId, item.nome, item.precoUnitario, item.quantidade, item.totalItem]
-        );
-        resolve();
-      } catch (error) {
-        reject(error);
-      }
-    });
-  },
-
-  // Retorna os itens específicos de uma compra realizada a partir do ID do histórico mestre
-  listarItensHistorico: (historicoId: number): HistoricoItem[] => {
-    try {
-      return dbLocal.getAllSync<HistoricoItem>(
-        `
-        SELECT * FROM historico_itens
-        WHERE historicoId = ?
-        `,
-        [historicoId]
-      );
-    } catch (error) {
-      console.error(error);
-      return [];
-    }
-  }
 };
