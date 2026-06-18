@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Platform } from 'react-native';
 import { auth } from '../../services/firebase';
 import { compraService } from '../../services/compraService';
@@ -18,29 +18,32 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { ItemCompra } from '../../services/compraService';
 
+// Extensão da tipagem original para incluir o estado temporário do input do caixa
 interface ItemConferencia extends ItemCompra {
     valorCaixa: string;
 }
 
-// Guard para evitar duplo clique em Finalizar Compra
-// useRef em vez de variável de módulo — reseta corretamente ao remontar a tela
-
 export default function CheckoutScreen() {
     const navigation = useNavigation<any>();
     const route = useRoute<any>();
+
+    // Guard para evitar múltiplos cliques seguidos no envio do histórico (previne duplicidade no banco)
     const finalizandoRef = React.useRef(false);
 
+    // Recupera a lista de produtos vinda da tela anterior via parâmetros de navegação
     const itensRecebidos: ItemCompra[] = route.params?.itens ?? [];
 
+    // Define o estado inicial da tela mapeando os itens recebidos com o novo campo de input de texto vazio
     const [itens, setItens] = useState<ItemConferencia[]>(
         itensRecebidos.map((item) => ({ ...item, valorCaixa: '' }))
     );
 
-    // Mensagem de alerta web (substitui Alert.alert que não funciona bem no browser)
     const [mensagemWeb, setMensagemWeb] = useState<string | null>(null);
 
+    // Atualiza o preço cobrado no caixa de um item específico no array de estados
     const handleValorCaixaChange = (id: number | undefined, valor: string) => {
         if (!id) return;
+        // Substitui a vírgula do padrão brasileiro por ponto para viabilizar cálculos matemáticos em JavaScript
         const valorNormalizado = valor.replace(',', '.');
         setItens((prev) =>
             prev.map((item) =>
@@ -49,27 +52,40 @@ export default function CheckoutScreen() {
         );
     };
 
+    /**
+     * useMemo: Otimiza e recalcula automaticamente os totais, diferenças matemáticas e validação
+     * de integridade sempre que o estado 'itens' sofrer alterações, poupando processamento de re-render.
+     */
     const { totalGondola, totalCaixa, diferenca, todosPreenchidos } = useMemo(() => {
         let totalGondola = 0;
         let totalCaixa = 0;
         let todosPreenchidos = true;
 
         itens.forEach((item) => {
+            // Soma o total acumulado com base no preço cadastrado na gôndola do mercado
             totalGondola += item.precoUnitario * item.quantidade;
             const valorDigitado = parseFloat(item.valorCaixa);
+
+            // Valida se o usuário deixou o campo vazio ou inseriu caracteres inválidos
             if (!item.valorCaixa || isNaN(valorDigitado)) {
-                todosPreenchidos = false;
+                todosPreenchidos = false; // Sinaliza que a validação falhou
             } else {
+                // Acumula o valor real total cobrado pelo operador de caixa
                 totalCaixa += valorDigitado * item.quantidade;
             }
         });
 
-        return { totalGondola, totalCaixa, diferenca: totalCaixa - totalGondola, todosPreenchidos };
+        return {
+            totalGondola,
+            totalCaixa,
+            diferenca: totalCaixa - totalGondola, // Se positivo: prejuízo/cobrança indevida. Se negativo: economia.
+            todosPreenchidos
+        };
     }, [itens]);
 
+    // Abstração de Alertas para compatibilidade cross-platform (Web vs Mobile nativo)
     const mostrarAlerta = (titulo: string, mensagem: string, onOk?: () => void) => {
         if (Platform.OS === 'web') {
-            // Na web usa window.alert simples — sem botões customizados
             window.alert(`${titulo}\n\n${mensagem}`);
             if (onOk) onOk();
         } else {
@@ -81,23 +97,26 @@ export default function CheckoutScreen() {
         }
     };
 
+    // Gera um relatório detalhado comparando o preço individual e global da compra
     const handleConferirCaixa = () => {
         if (!todosPreenchidos) {
             mostrarAlerta('Campos incompletos', 'Preencha o valor cobrado no caixa para todos os produtos antes de conferir.');
             return;
         }
 
+        // Mapeia item por item gerando strings informativas sobre o status financeiro de cada produto
         const linhasResumo = itens.map((item) => {
             const valorCaixa = parseFloat(item.valorCaixa);
             const diffItem = valorCaixa - item.precoUnitario;
             const status = diffItem > 0
-                ? `⚠️ +R$ ${diffItem.toFixed(2)}`
+                ? `⚠️ +R$ ${diffItem.toFixed(2)}` // Produto mais caro no caixa
                 : diffItem < 0
-                    ? `✅ -R$ ${Math.abs(diffItem).toFixed(2)}`
-                    : '✅ OK';
+                    ? `✅ -R$ ${Math.abs(diffItem).toFixed(2)}` // Produto com desconto no caixa
+                    : '✅ OK'; // Valores idênticos
             return `• ${item.nome}: ${status}`;
         });
 
+        // Define a mensagem final macro baseada na diferença geral calculada no useMemo
         const statusGeral = diferenca > 0
             ? `⚠️ Você está sendo cobrado R$ ${diferenca.toFixed(2)} a mais!`
             : diferenca < 0
@@ -107,9 +126,10 @@ export default function CheckoutScreen() {
         mostrarAlerta('Resumo da Conferência', `${linhasResumo.join('\n')}\n\n${statusGeral}`);
     };
 
+    // Grava permanentemente a compra realizada no histórico local e limpa o carrinho
     const handleFinalizarCompra = async () => {
         if (finalizandoRef.current) return;
-        finalizandoRef.current = true;
+        finalizandoRef.current = true; // Ativa a trava de segurança contra cliques duplos
 
         if (!todosPreenchidos) {
             mostrarAlerta('Campos incompletos', 'Preencha o valor cobrado no caixa para todos os produtos antes de finalizar.');
@@ -125,14 +145,16 @@ export default function CheckoutScreen() {
         }
 
         try {
+            // 1. Cria o cabeçalho principal da compra no histórico local e armazena o ID retornado
             const historicoId = await compraService.salvarHistoricoCompra({
                 userId: usuario.uid,
                 dataCompra: new Date().toLocaleDateString('pt-BR'),
                 totalCompra: totalGondola,
                 quantidadeItens: itens.length,
-                divergencia: diferenca > 0 ? diferenca : 0,
+                divergencia: diferenca > 0 ? diferenca : 0, // Registra apenas prejuízos na métrica de divergência
             });
 
+            // 2. Loop assíncrono para inserir todos os itens de forma vinculada ao ID do histórico gerado acima
             for (const item of itens) {
                 await compraService.salvarItemHistorico({
                     historicoId,
@@ -143,22 +165,23 @@ export default function CheckoutScreen() {
                 });
             }
 
+            // 3. Esvazia de forma completa a lista corrente do usuário após persistir os dados com sucesso
             await compraService.limparListaUsuario(usuario.uid);
 
-            // Volta para o carrinho automaticamente após salvar
             mostrarAlerta(
                 'Compra finalizada',
                 'Sua lista foi salva no histórico e a lista atual foi limpa.',
-                () => navigation.goBack()
+                () => navigation.goBack() // Retorna o usuário para o painel principal
             );
         } catch (error) {
             console.error(error);
             mostrarAlerta('Erro', 'Não foi possível finalizar a compra.');
         } finally {
-            finalizandoRef.current = false;
+            finalizandoRef.current = false; // Libera o botão de finalizar caso novos fluxos ocorram
         }
     };
 
+    // Função interna analítica para definir a variação de cores/estados baseada nos preços informados
     const getStatusItem = (item: ItemConferencia) => {
         const valor = parseFloat(item.valorCaixa);
         if (!item.valorCaixa || isNaN(valor)) return 'pendente';
@@ -167,7 +190,6 @@ export default function CheckoutScreen() {
         return 'ok';
     };
 
-    // Renderiza cada item — sem Wrapper inline para evitar bug de foco no input
     const renderItem = ({ item }: { item: ItemConferencia }) => {
         const status = getStatusItem(item);
         return (

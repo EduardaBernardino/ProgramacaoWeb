@@ -19,16 +19,25 @@ import { auth } from '../../services/firebase';
 import { compraService, ItemCompra } from '../../services/compraService';
 import { signOut } from 'firebase/auth';
 
+/**
+ * Utilitário de Persistência Física de Arquivos:
+ * Copia a imagem do cache temporário gerado pela câmera/seletor para a pasta permanente de documentos do aplicativo.
+ * Impede que o sistema operacional limpe a imagem do produto em limpezas automáticas de cache de disco.
+ */
 async function salvarImagemPersistente(uriTemporaria: string): Promise<string> {
+  // Na Web, o arquivo de imagem já trabalha indexado como string base64 blob ou data url, eliminando a cópia física.
   if (Platform.OS === 'web') return uriTemporaria;
   try {
+    // Carrega sob demanda usando 'require' para evitar carregamentos indevidos em ambientes de desenvolvimento web
     const FileSystem = require('expo-file-system/legacy');
     const nomeArquivo = `produto_${Date.now()}.jpg`;
     const destino = `${FileSystem.documentDirectory}${nomeArquivo}`;
+
+    // Executa a cópia binária em disco do arquivo original de origem para o diretório de destino
     await FileSystem.copyAsync({ from: uriTemporaria, to: destino });
-    return destino;
+    return destino; // Retorna o novo caminho absoluto seguro do celular
   } catch {
-    return uriTemporaria;
+    return uriTemporaria; // Fallback de proteção caso ocorra alguma falha no sistema de arquivos do smartphone
   }
 }
 
@@ -36,6 +45,7 @@ export default function ListScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
 
+  // Estados locais da tela: lista principal de compras, visibilidade do formulário modal e inputs
   const [produtos, setProdutos] = useState<ItemCompra[]>([]);
   const [modalVisivel, setModalVisivel] = useState(false);
   const [nome, setNome] = useState('');
@@ -43,10 +53,13 @@ export default function ListScreen() {
   const [quantidade, setQuantidade] = useState('');
   const [fotoUrl, setFotoUrl] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Guard de concorrência com useRef para impossibilitar cliques duplicados de inserção simultânea no banco
   const salvandoRef = useRef(false);
 
   const getUsuario = () => auth.currentUser;
 
+  // Carrega e preenche a lista chamando o serviço local indexado pelo ID único do usuário logado
   const carregarItens = async () => {
     const usuario = getUsuario();
     if (usuario) {
@@ -55,29 +68,35 @@ export default function ListScreen() {
     }
   };
 
+  // Observa os parâmetros da rota. Se receber a URI de uma nova imagem, abre o modal de cadastro automaticamente
   useEffect(() => {
     if (route.params?.fotoUrl) {
       setFotoUrl(route.params.fotoUrl);
       setModalVisivel(true);
+      // Reseta o parâmetro na navegação imediatamente para evitar reinicializações cíclicas ao reabrir a tela
       navigation.setParams({ fotoUrl: undefined });
     }
   }, [route.params?.fotoUrl]);
 
-  // useFocusEffect garante que a lista recarregue sempre que a tela ganhar foco
-  // (inclusive ao voltar do Checkout após finalizar a compra)
+  /**
+   * useFocusEffect + useCallback: Garante que a lista de compras atualize seus dados de forma reativa
+   * sempre que o usuário retornar para esta tela, limpando ou trazendo modificações salvas no Checkout/Histórico.
+   */
   useFocusEffect(
       useCallback(() => {
         carregarItens();
       }, [])
   );
 
+  // Redutor linear para calcular em tempo real o valor acumulado somando todos os subtotais dos itens
   const valorTotalCompra = produtos.reduce((acc, item) => acc + item.totalItem, 0);
 
+  // Executa o tratamento dos campos de input, converte os tipos e insere o produto no carrinho
   const handleSalvarItem = async () => {
     if (salvandoRef.current) return;
-    salvandoRef.current = true;
+    salvandoRef.current = true; // Ativa a barreira física de clique no botão
 
-    Keyboard.dismiss();
+    Keyboard.dismiss(); // Fecha o teclado virtual do celular de forma programática
     const usuario = getUsuario();
 
     if (!usuario) {
@@ -94,10 +113,12 @@ export default function ListScreen() {
 
     try {
       setLoading(true);
+      // Limpa caracteres especiais, converte vírgulas brasileiras para ponto flutuante
       const precoLimpo = preco.replace('R$', '').replace(',', '.').trim();
       const valorUnitario = parseFloat(precoLimpo);
       const qtd = parseInt(quantidade.trim(), 10);
 
+      // Validação de segurança matemática de valores e numerais reais positivos
       if (isNaN(valorUnitario) || isNaN(qtd) || valorUnitario <= 0 || qtd <= 0) {
         Alert.alert('Erro', 'Verifique os valores inseridos no preço e quantidade.');
         salvandoRef.current = false;
@@ -105,8 +126,10 @@ export default function ListScreen() {
         return;
       }
 
+      // 1. Move a imagem temporária para o armazenamento físico estável
       const fotoUrlPersistente = await salvarImagemPersistente(fotoUrl);
 
+      // 2. Grava de forma assíncrona o payload no AsyncStorage ou banco mapeado localmente
       await compraService.salvarItemLocal({
         userId: usuario.uid,
         nome: nome.trim(),
@@ -116,22 +139,24 @@ export default function ListScreen() {
         totalItem: valorUnitario * qtd,
       });
 
+      // 3. Reseta os campos de controle e fecha a janela flutuante em caso de sucesso
       setNome('');
       setPreco('');
       setQuantidade('');
       setFotoUrl('');
       setModalVisivel(false);
-      await carregarItens();
+      await carregarItens(); // Força a atualização visual imediata da FlatList
       Alert.alert('Sucesso', 'Item adicionado à sua lista!');
     } catch (error) {
       console.error('Erro ao salvar:', error);
       Alert.alert('Erro', 'Não foi possível gravar os dados.');
     } finally {
       setLoading(false);
-      salvandoRef.current = false;
+      salvandoRef.current = false; // Desativa a trava de cliques
     }
   };
 
+  // Remove um produto individual do carrinho local filtrado pelo ID de registro único
   const handleExcluirItem = (id: number | undefined) => {
     if (!id) return;
     const usuario = getUsuario();
@@ -146,8 +171,8 @@ export default function ListScreen() {
       }
     };
 
+    // Controle multiplataforma: window.confirm para Web, blocos nativos com botões para iOS/Android
     if (Platform.OS === 'web') {
-      // Na web Alert.alert não suporta botões customizados — usa confirm nativo
       if (window.confirm('Tem certeza que deseja tirar este produto da lista?')) {
         executarExclusao();
       }
@@ -163,6 +188,7 @@ export default function ListScreen() {
     }
   };
 
+  // Deleta por completo todos os itens da tabela temporária de compras vinculadas ao usuário logado
   const handleLimparLista = () => {
     const usuario = getUsuario();
     if (!usuario) return;
@@ -193,7 +219,7 @@ export default function ListScreen() {
     }
   };
 
-  // CORRIGIDO: passa userId para atualizarQuantidadeLocal
+  // Gerencia o controle incremental de quantidade de um produto diretamente nos botões do card (+ / -)
   const handleAlterarQuantidade = async (item: ItemCompra, operacao: 'aumentar' | 'diminuir') => {
     if (!item.id) return;
     const usuario = getUsuario();
@@ -203,19 +229,22 @@ export default function ListScreen() {
     if (operacao === 'aumentar') novaQtd += 1;
     if (operacao === 'diminuir') novaQtd -= 1;
 
+    // Se a redução levar a quantidade a zero, o aplicativo intercepta e redireciona o fluxo para a exclusão do produto
     if (novaQtd <= 0) {
       handleExcluirItem(item.id);
       return;
     }
 
     try {
-      await compraService.atualizarQuantidadeLocal(item.id, novaQtd, item.precoUnitario, usuario.uid); // CORRIGIDO
-      await carregarItens();
+      // Faz o update local no banco computando o novo multiplicador com base no ID do item e ID do usuário autenticado
+      await compraService.atualizarQuantidadeLocal(item.id, novaQtd, item.precoUnitario, usuario.uid);
+      await carregarItens(); // Sincroniza a tela com as alterações de valor recalculadas
     } catch (error) {
       console.error('Erro ao atualizar quantidade:', error);
     }
   };
 
+  // Invoca a desconexão do usuário de forma segura junto ao provedor do Firebase Auth
   const handleLogout = async () => {
     try {
       await signOut(auth);
@@ -224,6 +253,7 @@ export default function ListScreen() {
     }
   };
 
+  // Bloqueia e envia a lista de itens válida da compra corrente para a tela de Checkout de preços no caixa
   const handleFinalizarCompra = () => {
     if (produtos.length === 0) {
       Alert.alert('Lista vazia', 'Adicione itens antes de finalizar.');

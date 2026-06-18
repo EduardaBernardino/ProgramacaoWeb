@@ -5,45 +5,66 @@ import { useNavigation } from '@react-navigation/native';
 import { auth } from '../../services/firebase';
 import { compraService, HistoricoCompra } from '../../services/compraService';
 
-// BarChart só é importado no mobile — no web usamos um gráfico manual com View/CSS
+/**
+ * Importação Condicional por Plataforma:
+ * A biblioteca 'react-native-chart-kit' depende de dependências nativas (como react-native-svg).
+ * Para evitar falhas críticas de compilação ou bundle na Web, o 'require' só é executado no Mobile.
+ */
 const SmartBarChart = Platform.OS !== 'web'
     ? (require('react-native-chart-kit').BarChart as any)
     : null;
 
 export default function HistoryChartScreen() {
   const navigation = useNavigation();
+
+  // Estado estruturado conforme o padrão exigido pelas bibliotecas de gráficos (Labels + Datasets)
   const [dadosGrafico, setDadosGrafico] = useState({ labels: [''], datasets: [{ data: [0] }] });
 
+  // Dispara a busca do histórico de compras assim que o componente é montado na árvore
   useEffect(() => {
     const usuario = auth.currentUser;
     if (usuario) {
       compraService.listarHistoricoAsync(usuario.uid).then(dados => {
-        processarDadosParaGrafico(dados);
+        processarDadosParaGrafico(dados); // Formata os dados brutos do banco
       });
     }
   }, []);
 
+  /**
+   * Transforma e agrupa o histórico de compras de formato individual para soma mensal acumulada.
+   * Exemplo de Entrada: [{ totalCompra: 50, dataCompra: "15/05/2026" }, { totalCompra: 30, dataCompra: "20/05/2026" }]
+   * Exemplo de Saída formatada: { labels: ["05/26"], datasets: [{ data: [80] }] }
+   */
   const processarDadosParaGrafico = (historico: HistoricoCompra[]) => {
     const gastosPorMes: { [key: string]: number } = {};
 
     historico.forEach(compra => {
       if (compra.dataCompra) {
-        const partes = compra.dataCompra.split('/');
+        const partes = compra.dataCompra.split('/'); // Transforma "DD/MM/AAAA" em ["DD", "MM", "AAAA"]
         if (partes.length === 3) {
+          // Cria uma chave no padrão "AAAA-MM" para garantir uma ordenação alfabética cronológica correta
           const chaveOrdenacao = `${partes[2]}-${partes[1]}`;
           const valorNumerico = Number(compra.totalCompra) || 0;
+
+          // Acumula os valores gastos dentro do mesmo mês corrente
           gastosPorMes[chaveOrdenacao] = (gastosPorMes[chaveOrdenacao] || 0) + valorNumerico;
         }
       }
     });
 
+    // Filtra e ordena as chaves para pegar apenas os últimos 6 meses preenchidos (.slice(-6))
     const chavesOrdenadas = Object.keys(gastosPorMes).sort().slice(-6);
+
+    // Converte as chaves de ordenação interna ("AAAA-MM") no padrão de exibição visual ("MM/AA")
     const mesesLabels = chavesOrdenadas.map(chave => {
       const [ano, mes] = chave.split('-');
-      return `${mes}/${ano.substring(2)}`;
+      return `${mes}/${ano.substring(2)}`; // Pega apenas os dois últimos dígitos do ano (Ex: "2026" vira "26")
     });
+
+    // Mapeia os valores financeiros correspondentes na mesma sequência ordenada dos meses
     const valoresOrdenados = chavesOrdenadas.map(chave => gastosPorMes[chave]);
 
+    // Atualiza o estado caso existam registros válidos processados
     if (chavesOrdenadas.length > 0) {
       setDadosGrafico({
         labels: mesesLabels,
@@ -52,21 +73,28 @@ export default function HistoryChartScreen() {
     }
   };
 
+  // Variáveis computadas a cada render para facilitar o controle e validação de tela vazia
   const temDados = dadosGrafico.datasets[0].data[0] !== 0;
   const labels = dadosGrafico.labels;
   const valores = dadosGrafico.datasets[0].data;
+
+  // Captura o maior valor do gráfico para calcular proporcionalmente a altura das colunas manuais da Web
   const valorMax = Math.max(...valores, 1);
 
-  // ─── GRÁFICO WEB ─────────────────────────────────────────────────────────────
-  // Implementação manual com Views — não depende de SVG nem de libs nativas
+  // ─── GRÁFICO WEB (Componente Interno) ──────────────────────────────────────
+  // Renderização alternativa montada estritamente com Views empilhadas na base (flex-end)
   const GraficoWeb = () => (
       <View style={styles.graficoWebContainer}>
         {valores.map((valor, index) => {
+          // Calcula a altura da barra em pixels com base no valor máximo (teto de 180px de altura)
           const alturaPercentual = (valor / valorMax) * 180;
           return (
               <View key={index} style={styles.barraColuna}>
+                {/* Exibe o valor numérico inteiro acima de cada barra */}
                 <Text style={styles.barraValor}>R${valor.toFixed(0)}</Text>
+                {/* Aplica a altura calculada dinamicamente via estilo inline */}
                 <View style={[styles.barra, { height: alturaPercentual }]} />
+                {/* Rótulo do mês na base da coluna */}
                 <Text style={styles.barraLabel}>{labels[index]}</Text>
               </View>
           );
@@ -89,25 +117,23 @@ export default function HistoryChartScreen() {
 
           {temDados ? (
               Platform.OS === 'web' ? (
-                  // Gráfico alternativo para web
                   <View style={styles.chartContainer}>
                     <GraficoWeb />
                   </View>
               ) : (
-                  // Gráfico nativo para mobile
                   <View style={styles.chartContainer}>
                     <SmartBarChart
                         data={dadosGrafico}
-                        width={Dimensions.get('window').width - 32}
+                        width={Dimensions.get('window').width - 32} // Calcula a largura responsiva com base no device
                         height={280}
                         yAxisLabel="R$ "
                         yAxisSuffix=""
-                        fromZero={true}
+                        fromZero={true} // Força o gráfico a começar a contagem no ponto zero absoluto do eixo Y
                         segments={4}
                         formatYLabel={(value: string): string => {
                           const num = parseFloat(value);
                           if (isNaN(num) || num === 0) return '0';
-                          return Math.floor(num).toLocaleString('pt-BR');
+                          return Math.floor(num).toLocaleString('pt-BR'); // Converte para o padrão numérico brasileiro
                         }}
                         chartConfig={{
                           backgroundColor: '#fff',
@@ -120,9 +146,9 @@ export default function HistoryChartScreen() {
                           fillShadowGradientOpacity: 1,
                           color: (opacity = 1) => `rgba(15, 118, 110, ${opacity * 0.15})`,
                           labelColor: () => '#475569',
-                          barPercentage: 0.55,
+                          barPercentage: 0.55, // Controla a espessura das colunas no gráfico nativo
                           style: { borderRadius: 16 },
-                          propsForLabels: { dx: -8 },
+                          propsForLabels: { dx: -8 }, // Ajusta os textos do eixo Y para evitar cortes horizontais
                         }}
                         style={{ marginVertical: 8, borderRadius: 16 }}
                     />
@@ -146,8 +172,6 @@ const styles = StyleSheet.create({
   chartTitle: { fontSize: 16, fontWeight: '600', color: '#334155', marginBottom: 15, alignSelf: 'flex-start', paddingLeft: 4 },
   chartContainer: { backgroundColor: '#fff', borderRadius: 16, elevation: 2, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4, overflow: 'hidden', paddingRight: 12, width: '100%' },
   emptyText: { color: '#94a3b8', marginTop: 40, fontSize: 15 },
-
-  // Estilos do gráfico web manual
   graficoWebContainer: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-around', height: 240, paddingHorizontal: 16, paddingTop: 20, paddingBottom: 8 },
   barraColuna: { alignItems: 'center', flex: 1, marginHorizontal: 4 },
   barra: { backgroundColor: '#0f766e', borderRadius: 6, width: '70%', minHeight: 4 },

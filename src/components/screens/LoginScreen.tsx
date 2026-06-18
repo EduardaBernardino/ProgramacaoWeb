@@ -9,34 +9,49 @@ import {
   Image,
   Platform,
 } from 'react-native';
+// Hook para gerenciar a navegação global do app
 import { useNavigation } from '@react-navigation/native';
+// Função do Firebase Auth para autenticar um usuário existente com e-mail e senha
 import { signInWithEmailAndPassword } from 'firebase/auth';
+// Instância do Firebase configurada no projeto
 import { auth } from '../../services/firebase';
 
 export default function LoginScreen() {
+  // Inicialização do objeto de navegação de forma tipada
   const navigation = useNavigation<any>();
+
+  // Estados para capturar as credenciais informadas pelo usuário
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
 
+  // Função assíncrona responsável pelo processo de login
   const handleLogin = async () => {
+    // Validação básica utilizando .trim() para remover espaços em branco acidentais antes ou depois do texto
     if (!email.trim() || !senha.trim()) {
       Alert.alert('Atenção', 'Preencha todos os campos.');
-      return;
+      return; // Bloqueia a execução se os campos estiverem vazios
     }
 
     try {
+      // Faz a requisição de login enviando a instância do auth, o e-mail (sem espaços) e a senha
       await signInWithEmailAndPassword(auth, email.trim(), senha);
+      // Se der certo, o Firebase Auth atualiza o estado da sessão globalmente.
+      // O redirecionamento acontece no listener principal de rotas (onAuthStateChanged).
     } catch (error: any) {
-      console.log(error.code);
+      console.log(error.code); // Exibe o código do erro no terminal para debug
+
+      // Tratamento centralizado para erros de credenciais (segurança: não detalha se o erro foi especificamente no e-mail ou na senha)
       if (
-          error.code === 'auth/invalid-credential' ||
-          error.code === 'auth/wrong-password' ||
-          error.code === 'auth/user-not-found'
+          error.code === 'auth/invalid-credential' || // Código padrão do Firebase v10+ para erro de login
+          error.code === 'auth/wrong-password' ||      // Mantido por compatibilidade com versões anteriores
+          error.code === 'auth/user-not-found'        // Mantido por compatibilidade com versões anteriores
       ) {
         Alert.alert('Erro', 'E-mail ou senha inválidos.');
       } else if (error.code === 'auth/invalid-email') {
+        // Erro disparado se a string não possuir o formato padrão de um e-mail (ex: faltar o '@')
         Alert.alert('Erro', 'Formato de e-mail inválido.');
       } else {
+        // Fallback genérico para erros de rede, timeout ou problemas nos servidores do Firebase
         Alert.alert('Erro', 'Não foi possível conectar ao servidor.');
       }
     }
@@ -71,6 +86,7 @@ export default function LoginScreen() {
           <Text style={styles.buttonText}>Entrar</Text>
         </TouchableOpacity>
 
+        {/* Aciona a navegação para a tela de Registro configurada no seu Navigator */}
         <TouchableOpacity onPress={() => navigation.navigate('Register')}>
           <Text style={styles.linkText}>Criar Conta</Text>
         </TouchableOpacity>

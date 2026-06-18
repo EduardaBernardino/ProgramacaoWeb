@@ -10,38 +10,46 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
+// Biblioteca do Expo para abrir a câmera ou galeria nativa do dispositivo
 import * as ImagePicker from 'expo-image-picker';
+// Biblioteca do Expo para editar imagens (redimensionar, rotacionar, comprimir)
 import * as ImageManipulator from 'expo-image-manipulator';
 
 export default function CameraScreen({ navigation }: any) {
+  // Estados para controlar o loading, o caminho da imagem e a liberação do botão confirmar
   const [loading, setLoading] = useState(false);
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [imagemPronta, setImagemPronta] = useState(false);
 
+  // Ciclo de vida: Dispara o gatilho da câmera ou seletor de arquivos assim que a tela abre
   useEffect(() => {
     if (Platform.OS === 'web') {
-      abrirArquivoWeb();
+      abrirArquivoWeb(); // Fluxo para navegadores
     } else {
-      tirarFoto();
+      tirarFoto(); // Fluxo nativo para iOS e Android
     }
   }, []);
 
+  // Envia a URI da foto tratada de volta para a tela de listagem por meio dos parâmetros de navegação
   const confirmarImagem = () => {
     if (!imageUri) return;
     navigation.navigate('List', { fotoUrl: imageUri });
   };
 
-  // ─── FLUXO WEB ────────────────────────────────────────────────────────────
+  // ─── FLUXO WEB (Navegadores) ───────────────────────────────────────────────
+
+  // Cria dinamicamente um elemento <input type="file"> invisível para disparar o seletor de arquivos do navegador
   const abrirArquivoWeb = () => {
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = 'image/*';
-    input.capture = 'environment';
+    input.accept = 'image/*'; // Filtra apenas para arquivos de imagem
+    input.capture = 'environment'; // Em dispositivos móveis rodando a Web, tenta forçar o uso da câmera traseira
 
+    // Listener disparado assim que o usuário seleciona uma imagem
     input.onchange = async (e: any) => {
       const file: File = e.target.files[0];
       if (!file) {
-        navigation.goBack();
+        navigation.goBack(); // Se o usuário cancelou a escolha, volta de tela
         return;
       }
 
@@ -49,7 +57,9 @@ export default function CameraScreen({ navigation }: any) {
         setLoading(true);
         setImagemPronta(false);
 
+        // 1. Transforma o arquivo binário em uma String Base64 legível pela tag <Image>
         const uriBase64 = await lerArquivoComoDataUrl(file);
+        // 2. Redimensiona a imagem usando a API do Canvas do HTML5 para poupar memória e armazenamento
         const uriRedimensionada = await redimensionarImagemWeb(uriBase64, 500);
 
         setImageUri(uriRedimensionada);
@@ -62,10 +72,12 @@ export default function CameraScreen({ navigation }: any) {
       }
     };
 
+    // Caso o usuário feche a janela de seleção sem escolher nada
     input.oncancel = () => navigation.goBack();
-    input.click();
+    input.click(); // Executa o clique virtual para abrir a janela do sistema operacional
   };
 
+  // Utilitário Web: Lê o arquivo e retorna uma Promise contendo a string no formato DataURL (base64)
   const lerArquivoComoDataUrl = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -75,18 +87,24 @@ export default function CameraScreen({ navigation }: any) {
     });
   };
 
+  // Utilitário Web: Desenha a imagem dentro de um elemento Canvas invisível para redimensionar sua largura/altura
   const redimensionarImagemWeb = (dataUrl: string, larguraAlvo: number): Promise<string> => {
     return new Promise((resolve, reject) => {
       const img = new window.Image();
       img.onload = () => {
+        // Mantém a proporção original calculando a nova altura com base na largura alvo
         const proporcao = larguraAlvo / img.width;
         const altura = img.height * proporcao;
+
         const canvas = document.createElement('canvas');
         canvas.width = larguraAlvo;
         canvas.height = altura;
+
         const ctx = canvas.getContext('2d');
         if (!ctx) { reject(new Error('Canvas não disponível')); return; }
+
         ctx.drawImage(img, 0, 0, larguraAlvo, altura);
+        // Exporta o resultado do Canvas de volta em string jpeg com compressão de 60%
         resolve(canvas.toDataURL('image/jpeg', 0.6));
       };
       img.onerror = reject;
@@ -94,8 +112,11 @@ export default function CameraScreen({ navigation }: any) {
     });
   };
 
-  // ─── FLUXO MOBILE ─────────────────────────────────────────────────────────
+  // ─── FLUXO MOBILE (iOS e Android Nativo) ──────────────────────────────────
+
+  // Solicita permissões de hardware e inicializa a câmera do smartphone
   const tirarFoto = async () => {
+    // Requisita a permissão de uso da câmera ao sistema operacional
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
       Alert.alert('Permissão necessária', 'Precisamos de acesso à câmera para fotografar o produto.');
@@ -103,22 +124,27 @@ export default function CameraScreen({ navigation }: any) {
       return;
     }
 
+    // Abre a interface nativa da câmera
     const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ['images'],
-      quality: 1,
+      mediaTypes: ['images'], // Restringe a captura apenas para fotos (ignora vídeos)
+      quality: 1,            // Tira a foto na resolução máxima disponível
     });
 
+    // Se o usuário clicou no botão voltar da câmera sem tirar a foto
     if (result.canceled) {
       navigation.goBack();
       return;
     }
 
+    // Recupera o caminho do arquivo temporário gerado no armazenamento do celular
     const uriOriginal = result.assets[0].uri;
 
     try {
       setLoading(true);
       setImagemPronta(false);
 
+      // Otimização de imagem móvel: Altera a largura para 500px proporcionalmente
+      // e aplica compressão de 60% convertendo para JPEG para reduzir o peso do arquivo final.
       const imagemTratada = await ImageManipulator.manipulateAsync(
           uriOriginal,
           [{ resize: { width: 500 } }],
@@ -128,6 +154,7 @@ export default function CameraScreen({ navigation }: any) {
       setImageUri(imagemTratada.uri);
       setLoading(false);
 
+      // Caixa de diálogo de sucesso oferecendo ação imediata de retorno à listagem
       Alert.alert(
           'Sucesso!',
           'Imagem capturada e processada com sucesso.',
@@ -140,7 +167,7 @@ export default function CameraScreen({ navigation }: any) {
     }
   };
 
-  // ─── WEB: layout com preview redimensionado ───────────────────────────────
+  // ─── RENDERIZAÇÃO DA TELA (Condicionais de Plataforma) ─────────────────────
   if (Platform.OS === 'web') {
     return (
         <View style={styles.containerWeb}>
@@ -152,7 +179,6 @@ export default function CameraScreen({ navigation }: any) {
                 </View>
             )}
 
-            {/* Imagem com tamanho controlado — não ocupa a tela toda */}
             {imageUri && !loading && (
                 <Image
                     source={{ uri: imageUri }}
@@ -182,7 +208,6 @@ export default function CameraScreen({ navigation }: any) {
     );
   }
 
-  // ─── MOBILE: layout original com imagem em fullscreen ─────────────────────
   return (
       <View style={styles.container}>
         {imageUri && <Image source={{ uri: imageUri }} style={styles.preview} />}
@@ -206,7 +231,6 @@ export default function CameraScreen({ navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-  // ── Mobile ──
   container: {
     flex: 1,
     backgroundColor: '#000',
@@ -218,8 +242,6 @@ const styles = StyleSheet.create({
     height: '100%',
     position: 'absolute',
   },
-
-  // ── Web ──
   containerWeb: {
     flex: 1,
     backgroundColor: '#f4f6f9',
@@ -246,8 +268,6 @@ const styles = StyleSheet.create({
     color: '#666',
     fontSize: 15,
   },
-
-  // ── Compartilhados ──
   loadingOverlay: {
     backgroundColor: 'rgba(0,0,0,0.8)',
     padding: 20,

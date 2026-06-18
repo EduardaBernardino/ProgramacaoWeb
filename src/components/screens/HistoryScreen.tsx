@@ -13,14 +13,20 @@ import { compraService, HistoricoCompra } from '../../services/compraService';
 
 export default function HistoryScreen() {
   const navigation = useNavigation<any>();
+  // Estado local que armazena a lista com os registros de compras passadas obtidas do banco
   const [historico, setHistorico] = useState<HistoricoCompra[]>([]);
 
+  // Hook de ciclo de vida que busca o histórico assim que o componente é inserido na tela
   useEffect(() => {
     const usuario = auth.currentUser;
     if (usuario) {
-      // CORRIGIDO: usa listarHistoricoAsync (compatível com web e mobile)
+      /**
+       * Chamada assíncrona baseada em Promises utilizando listarHistoricoAsync.
+       * Este método abstrai o mecanismo de leitura unificando o comportamento tanto para a Web
+       * quanto para o armazenamento local de dispositivos móveis.
+       */
       compraService.listarHistoricoAsync(usuario.uid).then(dados => {
-        setHistorico(dados);
+        setHistorico(dados); // Popula o estado com o array retornado
       });
     }
   }, []);
@@ -32,6 +38,7 @@ export default function HistoryScreen() {
             <Text style={styles.backButtonText}>← Voltar</Text>
           </TouchableOpacity>
           <Text style={styles.title}>Histórico</Text>
+          {/* Botão direcionador para a tela de relatórios analíticos em formato gráfico */}
           <TouchableOpacity
               style={styles.chartButton}
               onPress={() => navigation.navigate('HistoryChart')}
@@ -40,9 +47,10 @@ export default function HistoryScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Componente otimizado para renderização eficiente de listas lineares */}
         <FlatList
             data={historico}
-            keyExtractor={(item) => String(item.id)}
+            keyExtractor={(item) => String(item.id)} // Converte o identificador numérico em String para indexação interna do React
             contentContainerStyle={{ paddingHorizontal: 15, paddingBottom: 20 }}
             renderItem={({ item }) => (
                 <View style={styles.card}>
@@ -50,6 +58,7 @@ export default function HistoryScreen() {
                     <View style={styles.dateBadge}>
                       <Text style={styles.dateText}>📅 {item.dataCompra}</Text>
                     </View>
+                    {/* Exibição gramatical condicional de acordo com o volume de itens */}
                     <Text style={styles.itemCountText}>
                       {item.quantidadeItens} {item.quantidadeItens === 1 ? 'produto' : 'produtos'}
                     </Text>
@@ -57,6 +66,11 @@ export default function HistoryScreen() {
 
                   <View style={styles.divider} />
 
+                  {/**
+                   * Renderização Condicional:
+                   * O badge vermelho de aviso de divergência financeira só será montado na interface
+                   * caso o valor cobrado a mais no caixa tenha sido superior a zero (item.divergencia > 0).
+                   */}
                   {item.divergencia > 0 && (
                       <View style={styles.divergenciaBadge}>
                         <Text style={styles.divergenciaText}>
@@ -71,6 +85,7 @@ export default function HistoryScreen() {
                   </View>
                 </View>
             )}
+            /* Componente de Fallback: Renderizado automaticamente caso o array de dados esteja vazio */
             ListEmptyComponent={
               <View style={styles.emptyContainer}>
                 <Text style={styles.emptyIcon}>📜</Text>
